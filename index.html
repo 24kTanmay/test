@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Test Platform</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-code"></i> Mock Test Platform</h1>
+            <div class="test-controls">
+                <div class="timer-display">
+                    <i class="fas fa-clock"></i>
+                    <span id="timer">00:00:00</span>
+                </div>
+                <button id="startTest" class="btn btn-primary">
+                    <i class="fas fa-play"></i> Start Test
+                </button>
+                <button id="endTest" class="btn btn-danger" disabled>
+                    <i class="fas fa-stop"></i> End Test
+                </button>
+                <button id="fullscreenBtn" class="btn btn-secondary" style="display: none;">
+                    <i class="fas fa-expand"></i> Enter Fullscreen
+                </button>
+            </div>
+        </header>
+
+        <div class="test-area">
+            <div class="question-section">
+                <div class="question-header">
+                    <h2>Question 1: JavaScript Algorithm</h2>
+                    <div class="question-info">
+                        <span class="difficulty easy">Easy</span>
+                        <span class="points">10 points</span>
+                    </div>
+                </div>
+                
+                <div class="question-content">
+                    <p>Write a function that takes an array of numbers and returns the sum of all even numbers in the array.</p>
+                    
+                    <div class="example">
+                        <h4>Example:</h4>
+                        <pre><code>Input: [1, 2, 3, 4, 5, 6]
+Output: 12 (2 + 4 + 6)</code></pre>
+                    </div>
+
+                    <div class="requirements">
+                        <h4>Requirements:</h4>
+                        <ul>
+                            <li>Function should be named <code>sumEvenNumbers</code></li>
+                            <li>Handle empty arrays (return 0)</li>
+                            <li>Handle arrays with no even numbers (return 0)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="editor-section">
+                <div class="editor-header">
+                    <h3><i class="fas fa-code"></i> Code Editor</h3>
+                    <div class="editor-controls">
+                        <select id="language" class="language-select">
+                            <option value="javascript">JavaScript</option>
+                            <option value="python">Python</option>
+                            <option value="java">Java</option>
+                            <option value="cpp">C++</option>
+                        </select>
+                        <button id="runCode" class="btn btn-success">
+                            <i class="fas fa-play"></i> Run Code
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="editor-container">
+                    <textarea id="codeEditor" placeholder="Write your code here...">function sumEvenNumbers(arr) {
+    // Write your solution here
+    
+}</textarea>
+                </div>
+
+                <div class="output-section">
+                    <h4><i class="fas fa-terminal"></i> Output</h4>
+                    <div id="output" class="output-display">
+                        <p class="output-placeholder">Run your code to see the output...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="monitoring-panel">
+            <h3><i class="fas fa-shield-alt"></i> Test Monitoring</h3>
+            <div class="monitoring-grid">
+                <div class="monitoring-card">
+                    <div class="monitoring-icon tab-switch">
+                        <i class="fas fa-exchange-alt"></i>
+                    </div>
+                    <div class="monitoring-info">
+                        <h4>Tab Switches</h4>
+                        <span id="tabSwitchCount" class="count">0</span>
+                    </div>
+                </div>
+                
+                <div class="monitoring-card">
+                    <div class="monitoring-icon copy-paste">
+                        <i class="fas fa-copy"></i>
+                    </div>
+                    <div class="monitoring-info">
+                        <h4>Copy/Paste Events</h4>
+                        <span id="copyPasteCount" class="count">0</span>
+                    </div>
+                </div>
+                
+                <div class="monitoring-card">
+                    <div class="monitoring-icon test-status">
+                        <i class="fas fa-clipboard-check"></i>
+                    </div>
+                    <div class="monitoring-info">
+                        <h4>Test Status</h4>
+                        <span id="testStatus" class="status">Not Started</span>
+                    </div>
+                </div>
+
+                <div class="monitoring-card">
+                    <div class="monitoring-icon fullscreen-status">
+                        <i class="fas fa-expand"></i>
+                    </div>
+                    <div class="monitoring-info">
+                        <h4>Fullscreen Mode</h4>
+                        <span id="fullscreenStatus" class="status">Inactive</span>
+                    </div>
+                </div>
+
+                <div class="monitoring-card">
+                    <div class="monitoring-icon webcam-status">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <div class="monitoring-info">
+                        <h4>Webcam Status</h4>
+                        <span id="webcamStatus" class="status">Inactive</span>
+                    </div>
+                </div>
+
+                <div class="monitoring-card">
+                    <div class="monitoring-icon screen-status">
+                        <i class="fas fa-desktop"></i>
+                    </div>
+                    <div class="monitoring-info">
+                        <h4>Tab Recording</h4>
+                        <span id="screenStatus" class="status">Inactive</span>
+                    </div>
+                </div>
+
+                <div class="monitoring-card">
+                    <div class="monitoring-icon snapshot-count">
+                        <i class="fas fa-camera"></i>
+                    </div>
+                    <div class="monitoring-info">
+                        <h4>Snapshots Taken</h4>
+                        <span id="snapshotCount" class="count">0</span>
+                    </div>
+                </div>
+
+
+            </div>
+
+            <div class="activity-log">
+                <h4><i class="fas fa-list"></i> Activity Log</h4>
+                <div id="activityLog" class="log-container">
+                    <p class="log-placeholder">Activity will be logged here during the test...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="warning-overlay" id="warningOverlay">
+            <div class="warning-content">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h2>Warning!</h2>
+                <p id="warningMessage">Suspicious activity detected!</p>
+                <button id="acknowledgeWarning" class="btn btn-warning">I Understand</button>
+            </div>
+        </div>
+
+        <!-- Webcam Permission Overlay -->
+        <div class="permission-overlay" id="permissionOverlay">
+            <div class="permission-content">
+                <i class="fas fa-video"></i>
+                <h2>Webcam Access Required</h2>
+                <p>This test requires webcam access for proctoring purposes. Your camera will take periodic snapshots during the test to ensure integrity.</p>
+                <div class="permission-buttons">
+                    <button id="allowWebcam" class="btn btn-success">
+                        <i class="fas fa-check"></i> Allow Webcam
+                    </button>
+                    <button id="denyWebcam" class="btn btn-danger">
+                        <i class="fas fa-times"></i> Deny
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen Recording Permission Overlay -->
+        <div class="permission-overlay" id="screenPermissionOverlay">
+            <div class="permission-content">
+                <i class="fas fa-desktop"></i>
+                <h2>Tab Recording Required</h2>
+                <p>This test requires recording of the current browser tab for monitoring purposes. Only this test tab will be recorded, not your entire screen.</p>
+                <div class="permission-buttons">
+                    <button id="allowScreen" class="btn btn-success">
+                        <i class="fas fa-check"></i> Allow Tab Recording
+                    </button>
+                    <button id="denyScreen" class="btn btn-danger">
+                        <i class="fas fa-times"></i> Deny
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden webcam elements -->
+        <div id="webcamContainer" style="display: none;">
+            <video id="webcamVideo" autoplay muted style="width: 200px; height: 150px; border-radius: 10px; position: fixed; top: 20px; right: 20px; z-index: 999; border: 3px solid #667eea;"></video>
+            <canvas id="snapshotCanvas" style="display: none;"></canvas>
+        </div>
+
+        <!-- Permission Request Modal -->
+        <div class="permission-overlay" id="permissionOverlay" style="display: none;">
+            <div class="permission-content">
+                <i class="fas fa-camera"></i>
+                <h2>Webcam Access Required</h2>
+                <p>This test requires webcam monitoring for proctoring purposes. Snapshots will be taken every 10 seconds during the test.</p>
+                <div class="permission-buttons">
+                    <button id="allowWebcam" class="btn btn-success">
+                        <i class="fas fa-check"></i> Allow Camera Access
+                    </button>
+                    <button id="denyWebcam" class="btn btn-danger">
+                        <i class="fas fa-times"></i> Deny Access
+                    </button>
+                </div>
+                <p class="privacy-note">
+                    <i class="fas fa-shield-alt"></i>
+                    Your privacy is important. Images are used only for test monitoring and are not stored permanently.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
