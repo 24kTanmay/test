@@ -203,7 +203,7 @@ class MockTestPlatform {
                     return false;
                 }
                 
-                // Enhanced Print Screen detection and prevention with comprehensive keycode support
+                // Enhanced Print Screen detection and prevention
                 this.detectScreenshotKeycodes(e);
                 
                 // Windows Key (Super/Meta key) detection
@@ -261,31 +261,6 @@ class MockTestPlatform {
                     this.enterFullscreen();
                 });
             }
-        });
-
-        // Also monitor other fullscreen events for cross-browser compatibility
-        document.addEventListener('webkitfullscreenchange', () => {
-            this.updateFullscreenStatus();
-            if (this.testActive && !this.isFullscreen()) {
-                this.logActivity('Fullscreen mode exited (webkit)', 'warning');
-                this.showWarning('Fullscreen mode is required during the test! Please return to fullscreen.', () => {
-                    this.enterFullscreen();
-                });
-            }
-        });
-        
-        document.addEventListener('mozfullscreenchange', () => {
-            this.updateFullscreenStatus();
-            if (this.testActive && !this.isFullscreen()) {
-                this.logActivity('Fullscreen mode exited (moz)', 'warning');
-                this.showWarning('Fullscreen mode is required during the test! Please return to fullscreen.', () => {
-                    this.enterFullscreen();
-                });
-            }
-        });
-        
-        document.addEventListener('msfullscreenchange', () => {
-            this.updateFullscreenStatus();
         });
 
         // ESC key prevention (exits fullscreen)
@@ -367,8 +342,6 @@ class MockTestPlatform {
                 const selection = window.getSelection();
                 if (selection.toString().length > 50) { // Substantial text selection
                     this.logActivity(`Large text selection detected: ${selection.toString().length} characters`, 'warning');
-                    // Don't block selection entirely as it might be needed for editing code
-                    // but log it for monitoring
                 }
             }
         });
@@ -414,276 +387,46 @@ class MockTestPlatform {
             };
         }
 
-        // Monitor window visibility changes (potential screenshot tools)
-        let visibilityChangeCount = 0;
-        document.addEventListener('visibilitychange', () => {
-            if (this.testActive && document.hidden) {
-                visibilityChangeCount++;
-                if (visibilityChangeCount > 3) {
-                    this.logActivity('Multiple tab switches detected - Possible screenshot tool usage', 'warning');
-                    this.showWarning('Multiple tab switches detected. Excessive switching may indicate screenshot tool usage.');
-                }
-            }
-        });
-
-        // Additional screenshot detection methods
-        setInterval(() => {
-            if (window.mockTestPlatform && window.mockTestPlatform.testActive) {
-                // Monitor for rapid window size changes (screenshot tool behavior)
-                const currentSize = `${window.innerWidth}x${window.innerHeight}`;
-                if (window.lastWindowSize && window.lastWindowSize !== currentSize) {
-                    const sizeChangeCount = (window.sizeChangeCount || 0) + 1;
-                    window.sizeChangeCount = sizeChangeCount;
-                    
-                    if (sizeChangeCount > 5) {
-                        window.mockTestPlatform.logActivity('Rapid window size changes detected - Possible screenshot tool', 'warning');
-                        window.mockTestPlatform.showWarning('Unusual window behavior detected. Please avoid resizing the window during the test.');
-                        window.sizeChangeCount = 0; // Reset counter
-                    }
-                }
-                window.lastWindowSize = currentSize;
-
-                // Monitor for external applications accessing the screen
-                if (document.hasFocus && !document.hasFocus()) {
-                    const focusLossCount = (window.focusLossCount || 0) + 1;
-                    window.focusLossCount = focusLossCount;
-                    
-                    if (focusLossCount > 10) {
-                        window.mockTestPlatform.logActivity('Excessive focus loss detected - Possible external tool usage', 'warning');
-                        window.mockTestPlatform.showWarning('Multiple window focus changes detected. External applications may interfere with test integrity.');
-                        window.focusLossCount = 0; // Reset counter
-                    }
-                }
-            }
-        }, 1000);
-
-        // Monitor for screenshot-related browser events
-        document.addEventListener('DOMContentLoaded', () => {
-            // Detect if user tries to save page content
-            document.addEventListener('keydown', (e) => {
-                if (window.mockTestPlatform && window.mockTestPlatform.testActive) {
-                    // Ctrl+S (Save page)
-                    if (e.ctrlKey && e.key === 's') {
-                        e.preventDefault();
-                        window.mockTestPlatform.copyPasteCount++;
-                        window.mockTestPlatform.showWarning('Saving page content is not allowed during the test!');
-                        window.mockTestPlatform.logActivity('Attempted to save page (Ctrl+S)', 'warning');
-                        window.mockTestPlatform.updateDisplay();
-                        return false;
-                    }
-                    
-                    // Ctrl+P (Print page)
-                    if (e.ctrlKey && e.key === 'p') {
-                        e.preventDefault();
-                        window.mockTestPlatform.copyPasteCount++;
-                        window.mockTestPlatform.showWarning('Printing is not allowed during the test!');
-                        window.mockTestPlatform.logActivity('Attempted to print page (Ctrl+P)', 'warning');
-                        window.mockTestPlatform.updateDisplay();
-                        return false;
-                    }
-                }
-            });
-
-            // Monitor for browser's built-in screenshot functionality
-            if ('getDisplayMedia' in navigator.mediaDevices) {
-                const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
-                navigator.mediaDevices.getDisplayMedia = function(...args) {
-                    if (window.mockTestPlatform && window.mockTestPlatform.testActive && !window.mockTestPlatform.screenRecording) {
-                        window.mockTestPlatform.logActivity('Unauthorized screen capture API call detected', 'warning');
-                        window.mockTestPlatform.showWarning('Unauthorized screen recording detected! This is a serious violation.');
-                        throw new Error('Screen capture blocked during test');
-                    }
-                    return originalGetDisplayMedia.apply(this, args);
-                };
-            }
-        });
-
-        // Prevent common screenshot shortcuts with additional methods
-        window.addEventListener('keydown', (e) => {
-            if (window.mockTestPlatform && window.mockTestPlatform.testActive) {
-                // Lightshot and other screenshot tool shortcuts
-                const screenshotShortcuts = [
-                    { ctrl: true, shift: false, alt: false, key: 'PrintScreen' },
-                    { ctrl: false, shift: true, alt: false, key: 'PrintScreen' },
-                    { ctrl: true, shift: true, alt: false, key: 'PrintScreen' },
-                    { ctrl: false, shift: false, alt: true, key: 'PrintScreen' },
-                    // Common third-party screenshot tools
-                    { ctrl: true, shift: true, alt: false, key: 'x' }, // Some screenshot tools
-                    { ctrl: true, shift: true, alt: false, key: 'z' }, // Some screenshot tools
-                ];
-
-                for (const shortcut of screenshotShortcuts) {
-                    if (e.ctrlKey === shortcut.ctrl && 
-                        e.shiftKey === shortcut.shift && 
-                        e.altKey === shortcut.alt && 
-                        e.key === shortcut.key) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.mockTestPlatform.copyPasteCount++;
-                        window.mockTestPlatform.showWarning(`Screenshot shortcut ${shortcut.ctrl ? 'Ctrl+' : ''}${shortcut.shift ? 'Shift+' : ''}${shortcut.alt ? 'Alt+' : ''}${shortcut.key} is blocked!`);
-                        window.mockTestPlatform.logActivity(`Screenshot shortcut attempt: ${shortcut.ctrl ? 'Ctrl+' : ''}${shortcut.shift ? 'Shift+' : ''}${shortcut.alt ? 'Alt+' : ''}${shortcut.key}`, 'warning');
-                        window.mockTestPlatform.updateDisplay();
-                        return false;
-                    }
-                }
-            }
-        }, true); // Use capture phase to catch events early
+        this.logActivity('Screenshot detection initialized', 'info');
     }
 
     detectScreenshotKeycodes(e) {
-        // Comprehensive keycode detection for Print Screen and screenshot-related keys
+        // Enhanced Print Screen detection
         const screenshotKeycodes = {
-            44: 'Print Screen',    // Primary Print Screen keycode
-            124: 'Print Screen',   // Alternative Print Screen keycode (some keyboards)
-            19: 'Pause/Break',     // Sometimes mapped to Print Screen
-            145: 'Scroll Lock',    // Sometimes used for screenshots on certain systems
-            121: 'F10',           // Function key often used for screenshots
-            122: 'F11',           // Function key often used for screenshots  
-            123: 'F12',           // Function key often used for screenshots
-            116: 'F5',            // Refresh - sometimes used in screenshot tools
-            117: 'F6',            // Sometimes used in screenshot tools
-            118: 'F7',            // Sometimes used in screenshot tools
-            119: 'F8',            // Sometimes used in screenshot tools
-            120: 'F9'             // Sometimes used in screenshot tools
+            44: 'Print Screen',
+            124: 'Print Screen'
         };
 
-        // Check for Print Screen variations by keycode
         if (screenshotKeycodes[e.keyCode] || screenshotKeycodes[e.which]) {
-            const keyName = screenshotKeycodes[e.keyCode] || screenshotKeycodes[e.which];
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
             
-            // Handle Print Screen specifically
-            if (e.keyCode === 44 || e.which === 44 || e.keyCode === 124 || e.which === 124) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                
-                this.copyPasteCount++;
-                let warningMessage = 'Print Screen detected and blocked!';
-                let logMessage = 'Print Screen key pressed';
-                
-                // Check modifier keys
-                if (e.altKey) {
-                    warningMessage = 'Alt+Print Screen is not allowed during the test! Active window screenshots are blocked.';
-                    logMessage = 'Alt+Print Screen pressed - Window screenshot attempt blocked';
-                } else if (e.ctrlKey) {
-                    warningMessage = 'Ctrl+Print Screen is not allowed during the test!';
-                    logMessage = 'Ctrl+Print Screen pressed - Screenshot attempt blocked';
-                } else if (e.metaKey || e.key === 'Meta') {
-                    warningMessage = 'Windows+Print Screen is not allowed during the test! Screenshot to clipboard blocked.';
-                    logMessage = 'Windows+Print Screen pressed - System screenshot attempt blocked';
-                } else if (e.shiftKey) {
-                    warningMessage = 'Shift+Print Screen is not allowed during the test!';
-                    logMessage = 'Shift+Print Screen pressed - Screenshot attempt blocked';
-                } else {
-                    warningMessage = 'Screenshots are not allowed during the test! This violation has been recorded.';
-                    logMessage = 'Print Screen key pressed - Screenshot attempt blocked';
-                }
-                
-                this.showWarning(warningMessage);
-                this.logActivity(logMessage, 'warning');
-                this.updateDisplay();
-                return false;
+            this.copyPasteCount++;
+            let warningMessage = 'Print Screen detected and blocked!';
+            let logMessage = 'Print Screen key pressed';
+            
+            if (e.altKey) {
+                warningMessage = 'Alt+Print Screen is not allowed during the test!';
+                logMessage = 'Alt+Print Screen pressed - Window screenshot attempt blocked';
+            } else if (e.ctrlKey) {
+                warningMessage = 'Ctrl+Print Screen is not allowed during the test!';
+                logMessage = 'Ctrl+Print Screen pressed - Screenshot attempt blocked';
+            } else if (e.metaKey || e.key === 'Meta') {
+                warningMessage = 'Windows+Print Screen is not allowed during the test!';
+                logMessage = 'Windows+Print Screen pressed - System screenshot attempt blocked';
             }
             
-            // Handle other screenshot-related function keys
-            if (keyName.startsWith('F') && e.keyCode >= 112 && e.keyCode <= 123) {
-                // Check if it's a screenshot-related function key combination
-                if ((e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) && [116, 117, 118, 119, 120, 121, 122, 123].includes(e.keyCode)) {
-                    e.preventDefault();
-                    this.copyPasteCount++;
-                    this.showWarning(`${keyName} with modifier keys detected! This combination may be used for screenshots and is not allowed.`);
-                    this.logActivity(`${keyName} with modifiers pressed - Potential screenshot tool shortcut blocked`, 'warning');
-                    this.updateDisplay();
-                    return false;
-                }
-            }
+            this.showWarning(warningMessage);
+            this.logActivity(logMessage, 'warning');
+            this.updateDisplay();
+            return false;
         }
-
-        // Advanced detection using multiple methods
-        this.detectAdvancedScreenshotMethods(e);
         
         return true;
     }
 
-    detectAdvancedScreenshotMethods(e) {
-        // Detect various screenshot tool keyboard shortcuts by keycode combinations
-        const screenshotCombinations = [
-            // Snipping Tool and Windows screenshot shortcuts
-            { ctrl: false, shift: true, alt: false, meta: true, keyCode: 83 }, // Win+Shift+S
-            { ctrl: false, shift: false, alt: false, meta: true, keyCode: 44 }, // Win+PrtScn (by keycode)
-            { ctrl: false, shift: false, alt: false, meta: true, keyCode: 124 }, // Win+PrtScn (alternative)
-            
-            // Third-party screenshot tools (common shortcuts)
-            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 88 }, // Ctrl+Shift+X (many tools)
-            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 90 }, // Ctrl+Shift+Z (some tools)
-            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 67 }, // Ctrl+Shift+C (some tools)
-            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 65 }, // Ctrl+Shift+A (area screenshot)
-            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 83 }, // Ctrl+Shift+S (save screenshot)
-            
-            // Alternative Print Screen keycodes
-            { ctrl: false, shift: false, alt: true, meta: false, keyCode: 44 }, // Alt+PrtScn
-            { ctrl: false, shift: false, alt: true, meta: false, keyCode: 124 }, // Alt+PrtScn (alternative)
-            { ctrl: true, shift: false, alt: false, meta: false, keyCode: 44 }, // Ctrl+PrtScn
-            { ctrl: true, shift: false, alt: false, meta: false, keyCode: 124 }, // Ctrl+PrtScn (alternative)
-            
-            // Mac screenshot shortcuts (for cross-platform compatibility)
-            { ctrl: false, shift: true, alt: false, meta: true, keyCode: 51 }, // Cmd+Shift+3
-            { ctrl: false, shift: true, alt: false, meta: true, keyCode: 52 }, // Cmd+Shift+4
-            { ctrl: false, shift: true, alt: false, meta: true, keyCode: 53 }, // Cmd+Shift+5
-            
-            // Linux screenshot shortcuts
-            { ctrl: false, shift: false, alt: true, meta: false, keyCode: 44 }, // Alt+PrtScn (Linux)
-            { ctrl: true, shift: false, alt: true, meta: false, keyCode: 44 }, // Ctrl+Alt+PrtScn
-        };
-
-        for (const combo of screenshotCombinations) {
-            if (e.ctrlKey === combo.ctrl && 
-                e.shiftKey === combo.shift && 
-                e.altKey === combo.alt && 
-                e.metaKey === combo.meta && 
-                (e.keyCode === combo.keyCode || e.which === combo.keyCode)) {
-                
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                
-                this.copyPasteCount++;
-                
-                const modifiers = [];
-                if (combo.ctrl) modifiers.push('Ctrl');
-                if (combo.shift) modifiers.push('Shift');
-                if (combo.alt) modifiers.push('Alt');
-                if (combo.meta) modifiers.push('Win/Cmd');
-                
-                const shortcutName = `${modifiers.join('+')}+${String.fromCharCode(combo.keyCode)}`;
-                
-                this.showWarning(`Screenshot shortcut ${shortcutName} detected and blocked! This key combination is commonly used for taking screenshots.`);
-                this.logActivity(`Screenshot shortcut attempt: ${shortcutName} (keyCode: ${combo.keyCode})`, 'warning');
-                this.updateDisplay();
-                
-                return false;
-            }
-        }
-
-        // Detect unknown but suspicious key combinations
-        if ((e.ctrlKey || e.altKey || e.metaKey) && e.shiftKey) {
-            // Common screenshot tool pattern: Modifier + Shift + Key
-            const suspiciousKeyCodes = [65, 67, 83, 88, 90]; // A, C, S, X, Z
-            if (suspiciousKeyCodes.includes(e.keyCode) || suspiciousKeyCodes.includes(e.which)) {
-                this.logActivity(`Suspicious key combination detected: Modifiers+Shift+${String.fromCharCode(e.keyCode)} (keyCode: ${e.keyCode})`, 'warning');
-                
-                // Don't block all combinations, but log them for analysis
-                if (Math.random() < 0.3) { // Occasionally warn about suspicious patterns
-                    this.showWarning('Unusual key combination detected. Some key combinations may be restricted during the test.');
-                }
-            }
-        }
-
-        return true;
-    }
-
     startTest() {
-        // First request webcam permission
         this.requestWebcamPermission();
     }
 
@@ -754,7 +497,6 @@ class MockTestPlatform {
             this.updateWebcamStatus();
             this.logActivity('Webcam initialized successfully', 'info');
             
-            // Add recording indicator
             this.addWebcamIndicator();
             
         } catch (error) {
@@ -772,42 +514,15 @@ class MockTestPlatform {
 
     async initializeScreenRecording() {
         try {
-            // Try to capture current tab first (Chrome/Edge)
-            try {
-                this.screenStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        mediaSource: 'browser',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                        frameRate: { ideal: 10 }
-                    },
-                    audio: false,
-                    preferCurrentTab: true
-                });
-            } catch (tabError) {
-                // Fallback to screen capture if tab capture fails
-                this.screenStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                        frameRate: { ideal: 10 }
-                    },
-                    audio: false
-                });
-            }
-
-            // Auto-select current tab/window programmatically
-            const tracks = this.screenStream.getVideoTracks();
-            if (tracks.length > 0) {
-                // Apply constraints to focus on current tab
-                await tracks[0].applyConstraints({
+            this.screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
                     width: { ideal: 1920 },
                     height: { ideal: 1080 },
                     frameRate: { ideal: 10 }
-                });
-            }
+                },
+                audio: false
+            });
 
-            // Set up MediaRecorder with optimized settings
             let mimeType = 'video/webm;codecs=vp9';
             if (!MediaRecorder.isTypeSupported(mimeType)) {
                 mimeType = 'video/webm;codecs=vp8';
@@ -818,7 +533,7 @@ class MockTestPlatform {
 
             this.mediaRecorder = new MediaRecorder(this.screenStream, {
                 mimeType: mimeType,
-                videoBitsPerSecond: 2500000 // 2.5 Mbps for good quality
+                videoBitsPerSecond: 2500000
             });
 
             this.mediaRecorder.ondataavailable = (event) => {
@@ -831,21 +546,19 @@ class MockTestPlatform {
                 this.finalizeRecording();
             };
 
-            // Handle stream ending (user stops sharing)
             this.screenStream.getVideoTracks()[0].addEventListener('ended', () => {
                 this.logActivity('Screen recording ended - User stopped sharing', 'warning');
                 this.screenRecording = false;
                 this.updateScreenStatus();
                 if (this.testActive) {
-                    this.showWarning('Screen recording stopped! This is considered a violation. Test will be flagged.');
+                    this.showWarning('Screen recording stopped! This is considered a violation.');
                 }
             });
 
             this.screenRecording = true;
             this.updateScreenStatus();
-            this.logActivity('Screen recording initialized - Current tab/window being recorded', 'info');
+            this.logActivity('Screen recording initialized', 'info');
             
-            // Add screen recording indicator
             this.addScreenIndicator();
 
         } catch (error) {
@@ -869,7 +582,6 @@ class MockTestPlatform {
         this.snapshotCount = 0;
         this.activityLog = [];
         
-        // Update UI elements safely
         const startBtn = document.getElementById('startTest');
         const endBtn = document.getElementById('endTest');
         const testStatus = document.getElementById('testStatus');
@@ -881,24 +593,19 @@ class MockTestPlatform {
             testStatus.style.color = '#e53e3e';
         }
         
-        // Start timer
         this.startTimer();
         
-        // Start webcam monitoring if available
         if (this.webcamActive) {
             this.startWebcamMonitoring();
         }
 
-        // Start screen recording if available
         if (this.screenRecording) {
             this.startScreenRecording();
         }
         
-        // Log start
         this.logActivity('Test started - Attempting to enter fullscreen mode', 'info');
         this.updateDisplay();
         
-        // Show initial instructions and request fullscreen
         this.showWarning('Test is starting! Click "I Understand" to enter fullscreen mode and begin monitoring.', () => {
             this.enterFullscreen();
         });
@@ -907,19 +614,11 @@ class MockTestPlatform {
     endTest() {
         this.testActive = false;
         
-        // Stop webcam monitoring
         this.stopWebcamMonitoring();
-
-        // Stop screen recording
         this.stopScreenRecording();
-        
-        // Stop mouse tracking
         this.stopMouseTracking();
-        
-        // Exit fullscreen mode
         this.exitFullscreen();
         
-        // Update UI safely
         const startBtn = document.getElementById('startTest');
         const endBtn = document.getElementById('endTest');
         const testStatus = document.getElementById('testStatus');
@@ -931,13 +630,11 @@ class MockTestPlatform {
             testStatus.style.color = '#38a169';
         }
         
-        // Stop timer
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
         
-        // Log end and show summary
         this.logActivity('Test ended - Stopping all monitoring', 'info');
         this.showTestSummary();
     }
@@ -962,7 +659,6 @@ class MockTestPlatform {
         const minutes = Math.floor(elapsed / 60);
         const seconds = elapsed % 60;
         
-        // Get mouse tracking summary
         const mouseStats = this.getMouseTrackingSummary();
         
         const summary = `Test Summary:
@@ -976,7 +672,6 @@ Mouse Activity Analysis:
 Total mouse movement: ${mouseStats.totalDistance} pixels
 Screen coverage: ${mouseStats.coveragePercentage}%
 Mouse left browser: ${mouseStats.browserExitCount} times
-Time outside browser: ${(mouseStats.browserExitTime / 1000).toFixed(1)}s
 Large mouse jumps: ${mouseStats.jumpCount}
 Suspicious movements: ${mouseStats.suspiciousMovementCount}
 Total idle time: ${mouseStats.totalIdleTime}s
@@ -1010,11 +705,9 @@ Total violations: ${this.tabSwitchCount + this.copyPasteCount + mouseStats.jumpC
     }
 
     executeJavaScript(code, output) {
-        // Create a safe execution environment
         const originalConsole = console.log;
         let consoleOutput = [];
         
-        // Override console.log to capture output
         console.log = (...args) => {
             consoleOutput.push(args.map(arg => 
                 typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
@@ -1022,10 +715,8 @@ Total violations: ${this.tabSwitchCount + this.copyPasteCount + mouseStats.jumpC
         };
         
         try {
-            // Execute the code
             const result = eval(code);
             
-            // Test the function if it exists
             if (typeof sumEvenNumbers === 'function') {
                 const testCases = [
                     [1, 2, 3, 4, 5, 6],
@@ -1057,7 +748,6 @@ Total violations: ${this.tabSwitchCount + this.copyPasteCount + mouseStats.jumpC
         } catch (error) {
             output.innerHTML = `<span style="color: #f56565;">Error:</span> ${error.message}`;
         } finally {
-            // Restore original console.log
             console.log = originalConsole;
         }
     }
@@ -1206,7 +896,6 @@ int sumEvenNumbers(vector<int>& arr) {
         if (warningMessage) warningMessage.textContent = message;
         if (warningOverlay) warningOverlay.classList.add('show');
         
-        // Store callback for acknowledgment
         this.warningCallback = callback;
     }
 
@@ -1214,7 +903,6 @@ int sumEvenNumbers(vector<int>& arr) {
         const warningOverlay = document.getElementById('warningOverlay');
         if (warningOverlay) warningOverlay.classList.remove('show');
         
-        // Execute callback if provided
         if (this.warningCallback) {
             this.warningCallback();
             this.warningCallback = null;
@@ -1227,11 +915,11 @@ int sumEvenNumbers(vector<int>& arr) {
         const requestFullscreen = () => {
             if (element.requestFullscreen) {
                 return element.requestFullscreen();
-            } else if (element.mozRequestFullScreen) { // Firefox
+            } else if (element.mozRequestFullScreen) {
                 return element.mozRequestFullScreen();
-            } else if (element.webkitRequestFullscreen) { // Chrome, Safari, Opera
+            } else if (element.webkitRequestFullscreen) {
                 return element.webkitRequestFullscreen();
-            } else if (element.msRequestFullscreen) { // IE/Edge
+            } else if (element.msRequestFullscreen) {
                 return element.msRequestFullscreen();
             } else {
                 throw new Error('Fullscreen API not supported');
@@ -1246,18 +934,18 @@ int sumEvenNumbers(vector<int>& arr) {
             .catch(err => {
                 console.error('Fullscreen error:', err);
                 this.logActivity('Failed to enter fullscreen mode - ' + err.message, 'warning');
-                this.showWarning('Unable to enter fullscreen mode automatically. Please press F11 to enter fullscreen manually, or allow fullscreen when prompted by your browser.');
+                this.showWarning('Unable to enter fullscreen mode automatically. Please press F11 to enter fullscreen manually.');
             });
     }
 
     exitFullscreen() {
         if (document.exitFullscreen) {
             document.exitFullscreen();
-        } else if (document.mozCancelFullScreen) { // Firefox
+        } else if (document.mozCancelFullScreen) {
             document.mozCancelFullScreen();
-        } else if (document.webkitExitFullscreen) { // Chrome, Safari, Opera
+        } else if (document.webkitExitFullscreen) {
             document.webkitExitFullscreen();
-        } else if (document.msExitFullscreen) { // IE/Edge
+        } else if (document.msExitFullscreen) {
             document.msExitFullscreen();
         }
     }
@@ -1267,27 +955,23 @@ int sumEvenNumbers(vector<int>& arr) {
                  document.mozFullScreenElement || 
                  document.webkitFullscreenElement || 
                  document.msFullscreenElement ||
-                 window.innerHeight === screen.height); // Fallback check
+                 window.innerHeight === screen.height);
     }
 
     startWebcamMonitoring() {
         if (!this.webcamActive) return;
         
         this.logActivity('Starting webcam monitoring - snapshots every 10 seconds', 'info');
-        
-        // Take first snapshot immediately
         this.takeSnapshot();
         
-        // Set up interval for periodic snapshots
         this.snapshotInterval = setInterval(() => {
             if (this.testActive) {
                 this.takeSnapshot();
             }
-        }, 10000); // 10 seconds
+        }, 10000);
         
-        // Add visual indicator
         const video = document.getElementById('webcamVideo');
-        video.classList.add('recording');
+        if (video) video.classList.add('recording');
     }
 
     stopWebcamMonitoring() {
@@ -1303,32 +987,28 @@ int sumEvenNumbers(vector<int>& arr) {
         
         this.webcamActive = false;
         
-        // Hide webcam elements
-        document.getElementById('webcamContainer').style.display = 'none';
+        const webcamContainer = document.getElementById('webcamContainer');
+        if (webcamContainer) webcamContainer.style.display = 'none';
         
-        // Remove indicator
         const indicator = document.getElementById('webcamIndicator');
-        if (indicator) {
-            indicator.remove();
-        }
+        if (indicator) indicator.remove();
         
         this.updateWebcamStatus();
-        this.logActivity('Webcam monitoring stopped', 'info');
     }
 
     startScreenRecording() {
-        if (!this.screenRecording || !this.mediaRecorder) return;
-        
-        this.logActivity('Starting screen recording', 'info');
-        
-        // Start recording
-        this.mediaRecorder.start(1000); // Record in 1-second chunks
-        
-        this.updateScreenStatus();
+        if (this.mediaRecorder && this.screenRecording) {
+            try {
+                this.mediaRecorder.start(1000);
+                this.logActivity('Screen recording started', 'info');
+            } catch (error) {
+                this.logActivity('Failed to start screen recording: ' + error.message, 'warning');
+            }
+        }
     }
 
     stopScreenRecording() {
-        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
             this.mediaRecorder.stop();
         }
         
@@ -1339,253 +1019,114 @@ int sumEvenNumbers(vector<int>& arr) {
         
         this.screenRecording = false;
         
-        // Remove indicator
-        const screenIndicator = document.getElementById('screenIndicator');
-        if (screenIndicator) {
-            screenIndicator.remove();
-        }
+        const indicator = document.getElementById('screenIndicator');
+        if (indicator) indicator.remove();
         
         this.updateScreenStatus();
-        this.logActivity('Screen recording stopped', 'info');
     }
 
     finalizeRecording() {
-        if (this.recordedChunks.length === 0) return;
-        
-        const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        
-        // Store recording reference
-        const recording = {
-            timestamp: new Date().toISOString(),
-            duration: this.startTime ? Math.floor((new Date() - this.startTime) / 1000) : 0,
-            size: blob.size,
-            url: url,
-            blob: blob
-        };
-        
-        this.screenRecording = recording;
-        this.logActivity(`Screen recording completed - ${(blob.size / (1024 * 1024)).toFixed(2)} MB`, 'info');
-        
-        // Optional: Auto-download the recording
-        // this.downloadRecording(recording);
+        if (this.recordedChunks.length > 0) {
+            const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+            this.downloadRecording(blob);
+            this.recordedChunks = [];
+        }
     }
 
-    downloadRecording(recording) {
+    downloadRecording(blob) {
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = recording.url;
-        a.download = `test-screen-recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
-        document.body.appendChild(a);
+        a.href = url;
+        a.download = `test-recording-${new Date().toISOString().slice(0, 19)}.webm`;
         a.click();
-        document.body.removeChild(a);
-        
+        URL.revokeObjectURL(url);
         this.logActivity('Screen recording downloaded', 'info');
     }
 
     takeSnapshot() {
-        if (!this.webcamActive || !this.testActive) return;
-        
         const video = document.getElementById('webcamVideo');
         const canvas = document.getElementById('snapshotCanvas');
-        const ctx = canvas.getContext('2d');
         
-        // Set canvas dimensions to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        
-        // Draw current video frame to canvas
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // Get image data
-        const imageData = canvas.toDataURL('image/jpeg', 0.8);
-        
-        // Store snapshot with timestamp
-        const snapshot = {
-            timestamp: new Date().toISOString(),
-            dataUrl: imageData,
-            testTime: Math.floor((new Date() - this.startTime) / 1000)
-        };
-        
-        this.snapshots.push(snapshot);
-        this.snapshotCount++;
-        
-        this.logActivity(`Webcam snapshot captured (#${this.snapshotCount})`, 'info');
-        this.updateDisplay();
-        
-        // Optional: Limit stored snapshots to prevent memory issues
-        if (this.snapshots.length > 50) {
-            this.snapshots.shift(); // Remove oldest snapshot
+        if (video && canvas && video.videoWidth > 0) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            
+            canvas.toBlob((blob) => {
+                this.snapshots.push({
+                    timestamp: new Date().toISOString(),
+                    blob: blob
+                });
+                this.snapshotCount++;
+                this.updateDisplay();
+                this.logActivity(`Webcam snapshot ${this.snapshotCount} taken`, 'info');
+            }, 'image/jpeg', 0.8);
         }
     }
 
-    getSnapshotsSummary() {
-        return {
-            count: this.snapshotCount,
-            timestamps: this.snapshots.map(s => s.timestamp),
-            totalSize: this.snapshots.reduce((size, s) => size + s.dataUrl.length, 0)
-        };
-    }
-
-    exportSnapshots() {
-        // This function could be used to export snapshots for review
-        const summaryData = {
-            testSession: {
-                startTime: this.startTime,
-                endTime: new Date(),
-                totalSnapshots: this.snapshotCount,
-                violations: {
-                    tabSwitches: this.tabSwitchCount,
-                    copyPaste: this.copyPasteCount
-                }
-            },
-            snapshots: this.snapshots.map(s => ({
-                timestamp: s.timestamp,
-                testTime: s.testTime
-                // Note: In a real implementation, you might want to store images separately
-                // and only include references here due to size constraints
-            }))
-        };
-        
-        return summaryData;
-    }
-
     setupMouseTracking() {
-        // Mouse movement tracking
-        document.addEventListener('mousemove', (e) => {
-            if (this.testActive) {
-                this.handleMouseMove(e);
-            }
-        });
-
-        // Mouse enter/leave tracking
+        document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         document.addEventListener('mouseenter', () => {
-            if (this.testActive && this.mouseTracking.leftBrowser) {
+            if (this.mouseTracking.leftBrowser) {
+                const exitDuration = Date.now() - this.mouseTracking.browserExitTime;
+                this.mouseTracking.browserExitTime += exitDuration;
                 this.mouseTracking.leftBrowser = false;
-                this.mouseTracking.browserExitTime += Date.now() - this.mouseTracking.browserExitStart;
-                this.logActivity('Mouse returned to browser window', 'info');
+                this.logActivity(`Mouse returned to browser after ${(exitDuration / 1000).toFixed(1)}s`, 'info');
             }
         });
-
+        
         document.addEventListener('mouseleave', () => {
             if (this.testActive) {
                 this.mouseTracking.leftBrowser = true;
                 this.mouseTracking.browserExitCount++;
-                this.mouseTracking.browserExitStart = Date.now();
-                this.logActivity('Mouse left browser window - Potential external activity', 'warning');
-                
-                if (this.mouseTracking.browserExitCount > 5) {
-                    this.showWarning('Multiple mouse exits detected! Frequent movement outside the browser may indicate unauthorized assistance.');
-                }
+                this.mouseTracking.browserExitTime = Date.now();
+                this.logActivity('Mouse left browser window', 'warning');
             }
         });
-
-        // Start idle monitoring
+        
         this.startIdleMonitoring();
-
-        // Keyboard activity also resets idle timer
-        document.addEventListener('keydown', () => {
-            if (this.testActive) {
-                this.resetIdleTimer();
-            }
-        });
-
-        // Click activity resets idle timer
-        document.addEventListener('click', () => {
-            if (this.testActive) {
-                this.resetIdleTimer();
-            }
-        });
+        this.logActivity('Mouse tracking initialized', 'info');
     }
 
     handleMouseMove(e) {
-        const currentTime = Date.now();
-        this.mouseTracking.currentPosition = { x: e.clientX, y: e.clientY };
+        if (!this.testActive) return;
         
-        // Calculate distance moved
-        const distance = this.calculateDistance(
-            this.mouseTracking.lastPosition,
-            this.mouseTracking.currentPosition
-        );
-        
-        this.mouseTracking.totalDistance += distance;
-        
-        // Check for movement anomalies
-        this.detectMovementAnomalies(distance, currentTime);
-        
-        // Update coverage area
-        this.updateCoverageArea(e.clientX, e.clientY);
-        
-        // Store movement history
-        this.storeMovementHistory(e.clientX, e.clientY, currentTime);
-        
-        // Reset idle timer
         this.resetIdleTimer();
         
-        // Update last position
-        this.mouseTracking.lastPosition = { x: e.clientX, y: e.clientY };
-    }
-
-    calculateDistance(pos1, pos2) {
-        return Math.sqrt(Math.pow(pos2.x - pos1.x, 2) + Math.pow(pos2.y - pos1.y, 2));
-    }
-
-    detectMovementAnomalies(distance, currentTime) {
-        // Detect large jumps (possible automation/assistance)
-        if (distance > this.mouseTracking.jumpThreshold) {
-            this.mouseTracking.jumpCount++;
-            this.logActivity(`Large mouse jump detected: ${distance.toFixed(2)} pixels`, 'warning');
+        const currentPos = { x: e.clientX, y: e.clientY };
+        
+        if (this.mouseTracking.lastPosition.x !== 0 || this.mouseTracking.lastPosition.y !== 0) {
+            const distance = this.calculateDistance(this.mouseTracking.lastPosition, currentPos);
+            this.mouseTracking.totalDistance += distance;
             
-            if (this.mouseTracking.jumpCount > 3) {
-                this.showWarning('Unusual mouse movement patterns detected! Large jumps may indicate automated assistance.');
+            if (distance > this.mouseTracking.jumpThreshold) {
+                this.mouseTracking.jumpCount++;
+                this.logActivity(`Large mouse jump detected: ${distance.toFixed(0)} pixels`, 'warning');
             }
         }
-
-        // Detect high acceleration (unnatural movement)
-        if (this.mouseTracking.movementHistory.length > 1) {
-            const lastMovement = this.mouseTracking.movementHistory[this.mouseTracking.movementHistory.length - 1];
-            const timeDiff = currentTime - lastMovement.time;
-            
-            if (timeDiff > 0) {
-                const acceleration = distance / timeDiff;
-                if (acceleration > this.mouseTracking.accelerationThreshold) {
-                    this.mouseTracking.highAccelerationCount++;
-                    this.logActivity(`High mouse acceleration detected: ${acceleration.toFixed(2)} px/ms`, 'warning');
-                    
-                    if (this.mouseTracking.highAccelerationCount > 5) {
-                        this.mouseTracking.suspiciousMovementCount++;
-                        this.showWarning('Suspicious mouse acceleration patterns detected! This may indicate automated tools.');
-                    }
-                }
-            }
+        
+        this.mouseTracking.lastPosition = currentPos;
+        this.mouseTracking.movementHistory.push(currentPos);
+        
+        if (this.mouseTracking.movementHistory.length > this.mouseTracking.maxHistoryLength) {
+            this.mouseTracking.movementHistory.shift();
         }
-    }
-
-    updateCoverageArea(x, y) {
-        const gridX = Math.floor(x / this.mouseTracking.gridSize);
-        const gridY = Math.floor(y / this.mouseTracking.gridSize);
+        
+        const gridX = Math.floor(currentPos.x / this.mouseTracking.gridSize);
+        const gridY = Math.floor(currentPos.y / this.mouseTracking.gridSize);
         const gridKey = `${gridX},${gridY}`;
         
         if (!this.mouseTracking.visitedAreas.has(gridKey)) {
             this.mouseTracking.visitedAreas.add(gridKey);
-            
-            // Calculate total possible grid areas
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-            const totalGridsX = Math.ceil(windowWidth / this.mouseTracking.gridSize);
-            const totalGridsY = Math.ceil(windowHeight / this.mouseTracking.gridSize);
-            const totalPossibleGrids = totalGridsX * totalGridsY;
-            
-            this.mouseTracking.totalCoverage = (this.mouseTracking.visitedAreas.size / totalPossibleGrids) * 100;
+            const totalGrids = Math.ceil(window.innerWidth / this.mouseTracking.gridSize) * 
+                              Math.ceil(window.innerHeight / this.mouseTracking.gridSize);
+            this.mouseTracking.totalCoverage = (this.mouseTracking.visitedAreas.size / totalGrids) * 100;
         }
     }
 
-    storeMovementHistory(x, y, time) {
-        this.mouseTracking.movementHistory.push({ x, y, time });
-        
-        // Keep only recent history
-        if (this.mouseTracking.movementHistory.length > this.mouseTracking.maxHistoryLength) {
-            this.mouseTracking.movementHistory.shift();
-        }
+    calculateDistance(pos1, pos2) {
+        return Math.sqrt(Math.pow(pos2.x - pos1.x, 2) + Math.pow(pos2.y - pos1.y, 2));
     }
 
     startIdleMonitoring() {
@@ -1594,22 +1135,18 @@ int sumEvenNumbers(vector<int>& arr) {
                 const currentTime = Date.now();
                 const idleTime = currentTime - this.mouseTracking.lastActivity;
                 
-                // Warning phase
                 if (idleTime > this.mouseTracking.idleWarningDuration && !this.mouseTracking.isIdle) {
-                    this.showWarning('Inactivity detected! Please interact with the test to continue. Prolonged inactivity will be logged as suspicious behavior.');
                     this.logActivity('Mouse inactivity warning - 20 seconds idle', 'warning');
                 }
                 
-                // Idle timeout
                 if (idleTime > this.mouseTracking.idleTimeoutDuration) {
                     if (!this.mouseTracking.isIdle) {
                         this.mouseTracking.isIdle = true;
                         this.mouseTracking.idleSessionStart = currentTime;
                         this.logActivity('Mouse idle timeout reached - User appears inactive', 'warning');
-                        this.showWarning('Extended inactivity detected! This may indicate the user has left the test area or is receiving unauthorized assistance.');
+                        this.showWarning('Extended inactivity detected! This may indicate the user has left the test area.');
                     }
                 } else if (this.mouseTracking.isIdle) {
-                    // User became active again
                     const idleSessionDuration = currentTime - this.mouseTracking.idleSessionStart;
                     this.mouseTracking.totalIdleTime += idleSessionDuration;
                     this.mouseTracking.isIdle = false;
@@ -1631,13 +1168,11 @@ int sumEvenNumbers(vector<int>& arr) {
     }
 
     stopMouseTracking() {
-        // Clear idle monitoring interval
         if (this.mouseTracking.idleInterval) {
             clearInterval(this.mouseTracking.idleInterval);
             this.mouseTracking.idleInterval = null;
         }
         
-        // Final idle time calculation if user was idle
         if (this.mouseTracking.isIdle && this.mouseTracking.idleSessionStart) {
             const finalIdleTime = Date.now() - this.mouseTracking.idleSessionStart;
             this.mouseTracking.totalIdleTime += finalIdleTime;
@@ -1665,27 +1200,17 @@ int sumEvenNumbers(vector<int>& arr) {
 document.addEventListener('DOMContentLoaded', () => {
     window.mockTestPlatform = new MockTestPlatform();
     
-    // Initial fullscreen status update
     setInterval(() => {
         if (window.mockTestPlatform) {
             window.mockTestPlatform.updateFullscreenStatus();
         }
     }, 1000);
     
-    // Add some sample keyboard shortcuts info
     console.log('Mock Test Platform Loaded');
-    console.log('Monitoring features:');
-    console.log('- Tab switching detection');
-    console.log('- Copy/paste detection');
-    console.log('- Keyboard shortcut monitoring');
-    console.log('- Right-click prevention');
-    console.log('- Developer tools prevention');
-    console.log('- Fullscreen enforcement');
 });
 
 // Prevent common cheating methods
 document.addEventListener('keydown', (e) => {
-    // Disable F12, Ctrl+Shift+I, Ctrl+Shift+C, Ctrl+U, Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+A
     if (e.key === 'F12' || 
         (e.ctrlKey && e.shiftKey && ['I', 'C', 'J'].includes(e.key.toUpperCase())) ||
         (e.ctrlKey && ['u', 'c', 'v', 'x', 'a'].includes(e.key.toLowerCase()))) {
@@ -1693,7 +1218,6 @@ document.addEventListener('keydown', (e) => {
         return false;
     }
     
-    // Prevent F11 during test (manual fullscreen toggle)
     if (window.mockTestPlatform && window.mockTestPlatform.testActive && e.key === 'F11') {
         e.preventDefault();
         window.mockTestPlatform.logActivity('F11 key blocked during test', 'warning');
@@ -1721,26 +1245,3 @@ document.addEventListener('dragstart', (e) => {
     e.preventDefault();
     return false;
 });
-
-// Additional protection against developer tools
-let devtools = {
-    open: false,
-    orientation: null
-};
-
-const threshold = 160;
-
-setInterval(() => {
-    if (window.outerHeight - window.innerHeight > threshold || 
-        window.outerWidth - window.innerWidth > threshold) {
-        if (!devtools.open) {
-            devtools.open = true;
-            if (window.mockTestPlatform && window.mockTestPlatform.testActive) {
-                window.mockTestPlatform.showWarning('Developer tools detected! This is not allowed during the test.');
-                window.mockTestPlatform.logActivity('Developer tools opened', 'warning');
-            }
-        }
-    } else {
-        devtools.open = false;
-    }
-}, 500);
