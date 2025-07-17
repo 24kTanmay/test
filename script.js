@@ -38,6 +38,22 @@ class MockTestPlatform {
             browserExitCount: 0,
             browserExitTime: 0,
             
+            // Window focus/blur tracking
+            windowBlurred: false,
+            blurStartTime: 0,
+            blurCount: 0,
+            totalBlurTime: 0,
+            
+            // Mouse visibility tracking
+            mouseHidden: false,
+            mouseHiddenCount: 0,
+            
+            // Page visibility tracking
+            pageHidden: false,
+            pageHiddenStartTime: 0,
+            pageHiddenCount: 0,
+            totalPageHiddenTime: 0,
+            
             // Anomaly detection
             jumpThreshold: 150, // pixels
             jumpCount: 0,
@@ -724,7 +740,14 @@ Large mouse jumps: ${mouseStats.jumpCount}
 Suspicious movements: ${mouseStats.suspiciousMovementCount}
 Total idle time: ${mouseStats.totalIdleTime}s
 
-Total violations: ${this.tabSwitchCount + this.copyPasteCount + mouseStats.jumpCount + mouseStats.suspiciousMovementCount}`;
+Focus & Visibility Analysis:
+Window lost focus: ${mouseStats.windowBlurCount} times
+Total time unfocused: ${mouseStats.totalBlurTime}s
+Mouse potentially hidden: ${mouseStats.mouseHiddenCount} times
+Page hidden events: ${mouseStats.pageHiddenCount} times
+Total page hidden time: ${mouseStats.totalPageHiddenTime}s
+
+Total violations: ${this.tabSwitchCount + this.copyPasteCount + mouseStats.jumpCount + mouseStats.suspiciousMovementCount + mouseStats.windowBlurCount + mouseStats.pageHiddenCount}`;
         
         this.showWarning(summary);
     }
@@ -1133,9 +1156,68 @@ int sumEvenNumbers(vector<int>& arr) {
                 this.logActivity('Mouse left browser window', 'warning');
             }
         });
+
+        // Add window blur/focus detection for mouse visibility
+        window.addEventListener('blur', () => {
+            if (this.testActive) {
+                this.mouseTracking.windowBlurred = true;
+                this.mouseTracking.blurStartTime = Date.now();
+                this.mouseTracking.blurCount++;
+                this.logActivity('Window lost focus - Mouse may not be visible', 'warning');
+                this.showWarning('Window focus lost! This may indicate the user switched to another application.');
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            if (this.testActive && this.mouseTracking.windowBlurred) {
+                const blurDuration = Date.now() - this.mouseTracking.blurStartTime;
+                this.mouseTracking.totalBlurTime += blurDuration;
+                this.mouseTracking.windowBlurred = false;
+                this.logActivity(`Window regained focus after ${(blurDuration / 1000).toFixed(1)}s`, 'info');
+            }
+        });
+
+        // Detect when mouse cursor might be hidden/invisible
+        let mouseHiddenTimer;
+        document.addEventListener('mousemove', () => {
+            // Clear any existing timer
+            clearTimeout(mouseHiddenTimer);
+            
+            // Set mouse as visible
+            if (this.mouseTracking.mouseHidden) {
+                this.mouseTracking.mouseHidden = false;
+                this.logActivity('Mouse cursor movement detected - cursor visible', 'info');
+            }
+            
+            // Set timer to detect if mouse becomes inactive (potentially hidden)
+            mouseHiddenTimer = setTimeout(() => {
+                if (this.testActive && !this.mouseTracking.mouseHidden) {
+                    this.mouseTracking.mouseHidden = true;
+                    this.mouseTracking.mouseHiddenCount++;
+                    this.logActivity('Mouse cursor inactive for extended period - potentially hidden', 'warning');
+                }
+            }, 5000); // 5 seconds of no movement = potentially hidden
+        });
+
+        // Detect page visibility changes (tab switches, minimizing)
+        document.addEventListener('visibilitychange', () => {
+            if (this.testActive) {
+                if (document.hidden) {
+                    this.mouseTracking.pageHidden = true;
+                    this.mouseTracking.pageHiddenStartTime = Date.now();
+                    this.mouseTracking.pageHiddenCount++;
+                    this.logActivity('Page became hidden - mouse not visible', 'warning');
+                } else if (this.mouseTracking.pageHidden) {
+                    const hiddenDuration = Date.now() - this.mouseTracking.pageHiddenStartTime;
+                    this.mouseTracking.totalPageHiddenTime += hiddenDuration;
+                    this.mouseTracking.pageHidden = false;
+                    this.logActivity(`Page became visible after ${(hiddenDuration / 1000).toFixed(1)}s`, 'info');
+                }
+            }
+        });
         
         this.startIdleMonitoring();
-        this.logActivity('Mouse tracking initialized', 'info');
+        this.logActivity('Enhanced mouse tracking with visibility detection initialized', 'info');
     }
 
     handleMouseMove(e) {
@@ -1240,7 +1322,16 @@ int sumEvenNumbers(vector<int>& arr) {
             highAccelerationCount: this.mouseTracking.highAccelerationCount,
             suspiciousMovementCount: this.mouseTracking.suspiciousMovementCount,
             totalIdleTime: (this.mouseTracking.totalIdleTime / 1000).toFixed(1),
-            currentlyIdle: this.mouseTracking.isIdle
+            currentlyIdle: this.mouseTracking.isIdle,
+            
+            // New visibility metrics
+            windowBlurCount: this.mouseTracking.blurCount,
+            totalBlurTime: (this.mouseTracking.totalBlurTime / 1000).toFixed(1),
+            mouseHiddenCount: this.mouseTracking.mouseHiddenCount,
+            pageHiddenCount: this.mouseTracking.pageHiddenCount,
+            totalPageHiddenTime: (this.mouseTracking.totalPageHiddenTime / 1000).toFixed(1),
+            currentlyBlurred: this.mouseTracking.windowBlurred,
+            currentlyHidden: this.mouseTracking.pageHidden
         };
     }
 }
