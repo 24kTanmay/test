@@ -251,6 +251,14 @@ class MockTestPlatform {
             }
         });
 
+        // Enhanced debugging - log ALL keydown events to console
+        document.addEventListener('keydown', (e) => {
+            console.log('Key pressed:', e.key, 'Code:', e.code, 'KeyCode:', e.keyCode, 'Which:', e.which);
+            if (this.testActive) {
+                this.logActivity(`KEYDOWN: ${e.key || 'Unknown'} (keyCode: ${e.keyCode || 'N/A'}, which: ${e.which || 'N/A'}, code: ${e.code || 'N/A'})`, 'debug');
+            }
+        });
+
         // Right-click context menu prevention
         document.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -417,6 +425,17 @@ class MockTestPlatform {
             122: 'Print Screen'   // Another alternative
         };
 
+        // Debug: Log every call to this function
+        if (this.testActive) {
+            console.log('detectScreenshotKeycodes called with:', {
+                key: e.key,
+                code: e.code, 
+                keyCode: e.keyCode,
+                which: e.which,
+                eventType: e.type
+            });
+        }
+
         // Check by keyCode, which, and key name
         const isPrintScreen = screenshotKeycodes[e.keyCode] || 
                              screenshotKeycodes[e.which] || 
@@ -426,6 +445,7 @@ class MockTestPlatform {
                              e.code === 'Print';
 
         if (isPrintScreen) {
+            console.log('🚨 PRINT SCREEN DETECTED!', e);
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
