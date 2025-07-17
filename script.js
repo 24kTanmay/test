@@ -203,45 +203,8 @@ class MockTestPlatform {
                     return false;
                 }
                 
-                // Print Screen detection and prevention
-                if (e.key === 'PrintScreen' || e.keyCode === 44 || e.which === 44) {
-                    e.preventDefault();
-                    this.copyPasteCount++; // Count as violation
-                    this.showWarning('Screenshots are not allowed during the test! This violation has been recorded.');
-                    this.logActivity('Print Screen key pressed - Screenshot attempt blocked', 'warning');
-                    this.updateDisplay();
-                    return false;
-                }
-                
-                // Alt+Print Screen (Alt+PrtScn)
-                if (e.altKey && (e.key === 'PrintScreen' || e.keyCode === 44 || e.which === 44)) {
-                    e.preventDefault();
-                    this.copyPasteCount++;
-                    this.showWarning('Alt+Print Screen is not allowed during the test! Active window screenshots are blocked.');
-                    this.logActivity('Alt+Print Screen pressed - Window screenshot attempt blocked', 'warning');
-                    this.updateDisplay();
-                    return false;
-                }
-                
-                // Windows+Print Screen (Win+PrtScn)
-                if ((e.metaKey || e.key === 'Meta') && (e.key === 'PrintScreen' || e.keyCode === 44 || e.which === 44)) {
-                    e.preventDefault();
-                    this.copyPasteCount++;
-                    this.showWarning('Windows+Print Screen is not allowed during the test! Screenshot to clipboard blocked.');
-                    this.logActivity('Windows+Print Screen pressed - System screenshot attempt blocked', 'warning');
-                    this.updateDisplay();
-                    return false;
-                }
-                
-                // Ctrl+Print Screen
-                if (e.ctrlKey && (e.key === 'PrintScreen' || e.keyCode === 44 || e.which === 44)) {
-                    e.preventDefault();
-                    this.copyPasteCount++;
-                    this.showWarning('Ctrl+Print Screen is not allowed during the test!');
-                    this.logActivity('Ctrl+Print Screen pressed - Screenshot attempt blocked', 'warning');
-                    this.updateDisplay();
-                    return false;
-                }
+                // Enhanced Print Screen detection and prevention with comprehensive keycode support
+                this.detectScreenshotKeycodes(e);
                 
                 // Windows Key (Super/Meta key) detection
                 if (e.key === 'Meta' || e.keyCode === 91 || e.keyCode === 92) {
@@ -343,6 +306,74 @@ class MockTestPlatform {
         
         // Setup comprehensive mouse tracking
         this.setupMouseTracking();
+    }
+
+    setupClipboardMonitoring() {
+        // Monitor clipboard API access attempts
+        if (navigator.clipboard && navigator.clipboard.readText) {
+            const originalReadText = navigator.clipboard.readText;
+            navigator.clipboard.readText = () => {
+                if (this.testActive) {
+                    this.logActivity('Unauthorized clipboard read attempt detected', 'warning');
+                    this.showWarning('Clipboard access is not allowed during the test!');
+                    this.copyPasteCount++;
+                    this.updateDisplay();
+                    throw new Error('Clipboard access blocked during test');
+                }
+                return originalReadText.apply(navigator.clipboard);
+            };
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            const originalWriteText = navigator.clipboard.writeText;
+            navigator.clipboard.writeText = (text) => {
+                if (this.testActive) {
+                    this.logActivity('Unauthorized clipboard write attempt detected', 'warning');
+                    this.showWarning('Clipboard access is not allowed during the test!');
+                    this.copyPasteCount++;
+                    this.updateDisplay();
+                    throw new Error('Clipboard access blocked during test');
+                }
+                return originalWriteText.apply(navigator.clipboard, [text]);
+            };
+        }
+
+        // Monitor for clipboard events
+        document.addEventListener('beforecopy', (e) => {
+            if (this.testActive) {
+                e.preventDefault();
+                this.copyPasteCount++;
+                this.logActivity('Copy operation intercepted via beforecopy event', 'warning');
+                this.showWarning('Copy operations are blocked during the test!');
+                this.updateDisplay();
+                return false;
+            }
+        });
+
+        document.addEventListener('beforepaste', (e) => {
+            if (this.testActive) {
+                e.preventDefault();
+                this.copyPasteCount++;
+                this.logActivity('Paste operation intercepted via beforepaste event', 'warning');
+                this.showWarning('Paste operations are blocked during the test!');
+                this.updateDisplay();
+                return false;
+            }
+        });
+
+        // Monitor for selection change to detect potential copy attempts
+        document.addEventListener('selectionchange', () => {
+            if (this.testActive) {
+                const selection = window.getSelection();
+                if (selection.toString().length > 50) { // Substantial text selection
+                    this.logActivity(`Large text selection detected: ${selection.toString().length} characters`, 'warning');
+                    // Don't block selection entirely as it might be needed for editing code
+                    // but log it for monitoring
+                }
+            }
+        });
+
+        this.logActivity('Clipboard monitoring initialized', 'info');
     }
 
     setupScreenshotDetection() {
@@ -497,6 +528,158 @@ class MockTestPlatform {
                 }
             }
         }, true); // Use capture phase to catch events early
+    }
+
+    detectScreenshotKeycodes(e) {
+        // Comprehensive keycode detection for Print Screen and screenshot-related keys
+        const screenshotKeycodes = {
+            44: 'Print Screen',    // Primary Print Screen keycode
+            124: 'Print Screen',   // Alternative Print Screen keycode (some keyboards)
+            19: 'Pause/Break',     // Sometimes mapped to Print Screen
+            145: 'Scroll Lock',    // Sometimes used for screenshots on certain systems
+            121: 'F10',           // Function key often used for screenshots
+            122: 'F11',           // Function key often used for screenshots  
+            123: 'F12',           // Function key often used for screenshots
+            116: 'F5',            // Refresh - sometimes used in screenshot tools
+            117: 'F6',            // Sometimes used in screenshot tools
+            118: 'F7',            // Sometimes used in screenshot tools
+            119: 'F8',            // Sometimes used in screenshot tools
+            120: 'F9'             // Sometimes used in screenshot tools
+        };
+
+        // Check for Print Screen variations by keycode
+        if (screenshotKeycodes[e.keyCode] || screenshotKeycodes[e.which]) {
+            const keyName = screenshotKeycodes[e.keyCode] || screenshotKeycodes[e.which];
+            
+            // Handle Print Screen specifically
+            if (e.keyCode === 44 || e.which === 44 || e.keyCode === 124 || e.which === 124) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                this.copyPasteCount++;
+                let warningMessage = 'Print Screen detected and blocked!';
+                let logMessage = 'Print Screen key pressed';
+                
+                // Check modifier keys
+                if (e.altKey) {
+                    warningMessage = 'Alt+Print Screen is not allowed during the test! Active window screenshots are blocked.';
+                    logMessage = 'Alt+Print Screen pressed - Window screenshot attempt blocked';
+                } else if (e.ctrlKey) {
+                    warningMessage = 'Ctrl+Print Screen is not allowed during the test!';
+                    logMessage = 'Ctrl+Print Screen pressed - Screenshot attempt blocked';
+                } else if (e.metaKey || e.key === 'Meta') {
+                    warningMessage = 'Windows+Print Screen is not allowed during the test! Screenshot to clipboard blocked.';
+                    logMessage = 'Windows+Print Screen pressed - System screenshot attempt blocked';
+                } else if (e.shiftKey) {
+                    warningMessage = 'Shift+Print Screen is not allowed during the test!';
+                    logMessage = 'Shift+Print Screen pressed - Screenshot attempt blocked';
+                } else {
+                    warningMessage = 'Screenshots are not allowed during the test! This violation has been recorded.';
+                    logMessage = 'Print Screen key pressed - Screenshot attempt blocked';
+                }
+                
+                this.showWarning(warningMessage);
+                this.logActivity(logMessage, 'warning');
+                this.updateDisplay();
+                return false;
+            }
+            
+            // Handle other screenshot-related function keys
+            if (keyName.startsWith('F') && e.keyCode >= 112 && e.keyCode <= 123) {
+                // Check if it's a screenshot-related function key combination
+                if ((e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) && [116, 117, 118, 119, 120, 121, 122, 123].includes(e.keyCode)) {
+                    e.preventDefault();
+                    this.copyPasteCount++;
+                    this.showWarning(`${keyName} with modifier keys detected! This combination may be used for screenshots and is not allowed.`);
+                    this.logActivity(`${keyName} with modifiers pressed - Potential screenshot tool shortcut blocked`, 'warning');
+                    this.updateDisplay();
+                    return false;
+                }
+            }
+        }
+
+        // Advanced detection using multiple methods
+        this.detectAdvancedScreenshotMethods(e);
+        
+        return true;
+    }
+
+    detectAdvancedScreenshotMethods(e) {
+        // Detect various screenshot tool keyboard shortcuts by keycode combinations
+        const screenshotCombinations = [
+            // Snipping Tool and Windows screenshot shortcuts
+            { ctrl: false, shift: true, alt: false, meta: true, keyCode: 83 }, // Win+Shift+S
+            { ctrl: false, shift: false, alt: false, meta: true, keyCode: 44 }, // Win+PrtScn (by keycode)
+            { ctrl: false, shift: false, alt: false, meta: true, keyCode: 124 }, // Win+PrtScn (alternative)
+            
+            // Third-party screenshot tools (common shortcuts)
+            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 88 }, // Ctrl+Shift+X (many tools)
+            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 90 }, // Ctrl+Shift+Z (some tools)
+            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 67 }, // Ctrl+Shift+C (some tools)
+            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 65 }, // Ctrl+Shift+A (area screenshot)
+            { ctrl: true, shift: true, alt: false, meta: false, keyCode: 83 }, // Ctrl+Shift+S (save screenshot)
+            
+            // Alternative Print Screen keycodes
+            { ctrl: false, shift: false, alt: true, meta: false, keyCode: 44 }, // Alt+PrtScn
+            { ctrl: false, shift: false, alt: true, meta: false, keyCode: 124 }, // Alt+PrtScn (alternative)
+            { ctrl: true, shift: false, alt: false, meta: false, keyCode: 44 }, // Ctrl+PrtScn
+            { ctrl: true, shift: false, alt: false, meta: false, keyCode: 124 }, // Ctrl+PrtScn (alternative)
+            
+            // Mac screenshot shortcuts (for cross-platform compatibility)
+            { ctrl: false, shift: true, alt: false, meta: true, keyCode: 51 }, // Cmd+Shift+3
+            { ctrl: false, shift: true, alt: false, meta: true, keyCode: 52 }, // Cmd+Shift+4
+            { ctrl: false, shift: true, alt: false, meta: true, keyCode: 53 }, // Cmd+Shift+5
+            
+            // Linux screenshot shortcuts
+            { ctrl: false, shift: false, alt: true, meta: false, keyCode: 44 }, // Alt+PrtScn (Linux)
+            { ctrl: true, shift: false, alt: true, meta: false, keyCode: 44 }, // Ctrl+Alt+PrtScn
+        };
+
+        for (const combo of screenshotCombinations) {
+            if (e.ctrlKey === combo.ctrl && 
+                e.shiftKey === combo.shift && 
+                e.altKey === combo.alt && 
+                e.metaKey === combo.meta && 
+                (e.keyCode === combo.keyCode || e.which === combo.keyCode)) {
+                
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                this.copyPasteCount++;
+                
+                const modifiers = [];
+                if (combo.ctrl) modifiers.push('Ctrl');
+                if (combo.shift) modifiers.push('Shift');
+                if (combo.alt) modifiers.push('Alt');
+                if (combo.meta) modifiers.push('Win/Cmd');
+                
+                const shortcutName = `${modifiers.join('+')}+${String.fromCharCode(combo.keyCode)}`;
+                
+                this.showWarning(`Screenshot shortcut ${shortcutName} detected and blocked! This key combination is commonly used for taking screenshots.`);
+                this.logActivity(`Screenshot shortcut attempt: ${shortcutName} (keyCode: ${combo.keyCode})`, 'warning');
+                this.updateDisplay();
+                
+                return false;
+            }
+        }
+
+        // Detect unknown but suspicious key combinations
+        if ((e.ctrlKey || e.altKey || e.metaKey) && e.shiftKey) {
+            // Common screenshot tool pattern: Modifier + Shift + Key
+            const suspiciousKeyCodes = [65, 67, 83, 88, 90]; // A, C, S, X, Z
+            if (suspiciousKeyCodes.includes(e.keyCode) || suspiciousKeyCodes.includes(e.which)) {
+                this.logActivity(`Suspicious key combination detected: Modifiers+Shift+${String.fromCharCode(e.keyCode)} (keyCode: ${e.keyCode})`, 'warning');
+                
+                // Don't block all combinations, but log them for analysis
+                if (Math.random() < 0.3) { // Occasionally warn about suspicious patterns
+                    this.showWarning('Unusual key combination detected. Some key combinations may be restricted during the test.');
+                }
+            }
+        }
+
+        return true;
     }
 
     startTest() {
@@ -701,9 +884,6 @@ class MockTestPlatform {
         // Start timer
         this.startTimer();
         
-        // Start display update timer for mouse tracking
-        this.startDisplayUpdateTimer();
-        
         // Start webcam monitoring if available
         if (this.webcamActive) {
             this.startWebcamMonitoring();
@@ -757,12 +937,6 @@ class MockTestPlatform {
             this.timerInterval = null;
         }
         
-        // Stop display update timer
-        if (this.displayUpdateInterval) {
-            clearInterval(this.displayUpdateInterval);
-            this.displayUpdateInterval = null;
-        }
-        
         // Log end and show summary
         this.logActivity('Test ended - Stopping all monitoring', 'info');
         this.showTestSummary();
@@ -781,15 +955,6 @@ class MockTestPlatform {
             const timerElement = document.getElementById('timer');
             if (timerElement) timerElement.textContent = timeString;
         }, 1000);
-    }
-
-    startDisplayUpdateTimer() {
-        // Update display every 2 seconds to show real-time mouse status
-        this.displayUpdateInterval = setInterval(() => {
-            if (this.testActive) {
-                this.updateMouseStatus();
-            }
-        }, 2000);
     }
 
     showTestSummary() {
@@ -986,7 +1151,6 @@ int sumEvenNumbers(vector<int>& arr) {
         this.updateFullscreenStatus();
         this.updateWebcamStatus();
         this.updateScreenStatus();
-        this.updateMouseStatus();
     }
 
     updateScreenStatus() {
@@ -1031,44 +1195,6 @@ int sumEvenNumbers(vector<int>& arr) {
                     fullscreenBtn.style.display = 'flex';
                     fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i> Enter Fullscreen';
                 }
-            }
-        }
-    }
-
-    updateMouseStatus() {
-        const mouseStatusElement = document.getElementById('mouseStatus');
-        const idleTimeElement = document.getElementById('idleTime');
-        
-        if (mouseStatusElement) {
-            if (this.testActive) {
-                if (this.mouseTracking.isIdle) {
-                    mouseStatusElement.textContent = 'Idle';
-                    mouseStatusElement.style.color = '#e53e3e';
-                } else if (this.mouseTracking.leftBrowser) {
-                    mouseStatusElement.textContent = 'Outside';
-                    mouseStatusElement.style.color = '#ed8936';
-                } else {
-                    mouseStatusElement.textContent = 'Active';
-                    mouseStatusElement.style.color = '#38a169';
-                }
-            } else {
-                mouseStatusElement.textContent = 'Inactive';
-                mouseStatusElement.style.color = '#4a5568';
-            }
-        }
-        
-        if (idleTimeElement) {
-            const currentIdleTime = this.mouseTracking.isIdle ? 
-                (Date.now() - this.mouseTracking.idleSessionStart) / 1000 : 0;
-            const totalDisplayTime = (this.mouseTracking.totalIdleTime / 1000) + currentIdleTime;
-            idleTimeElement.textContent = `${totalDisplayTime.toFixed(0)}s`;
-            
-            if (totalDisplayTime > 60) {
-                idleTimeElement.style.color = '#e53e3e';
-            } else if (totalDisplayTime > 30) {
-                idleTimeElement.style.color = '#ed8936';
-            } else {
-                idleTimeElement.style.color = '#4a5568';
             }
         }
     }
