@@ -233,6 +233,24 @@ class MockTestPlatform {
             }
         });
 
+        // Additional Print Screen detection on keyup event
+        document.addEventListener('keyup', (e) => {
+            if (this.testActive) {
+                // Print Screen detection on keyup (sometimes keydown doesn't catch it)
+                this.detectScreenshotKeycodes(e);
+                
+                // Enhanced debugging for all keys during test
+                this.logActivity(`Key released: ${e.key || 'Unknown'} (keyCode: ${e.keyCode || 'N/A'}, which: ${e.which || 'N/A'}, code: ${e.code || 'N/A'})`, 'debug');
+            }
+        });
+
+        // Additional debugging for all key presses during test
+        document.addEventListener('keypress', (e) => {
+            if (this.testActive) {
+                this.logActivity(`Key pressed: ${e.key || 'Unknown'} (keyCode: ${e.keyCode || 'N/A'}, which: ${e.which || 'N/A'}, code: ${e.code || 'N/A'})`, 'debug');
+            }
+        });
+
         // Right-click context menu prevention
         document.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -391,13 +409,23 @@ class MockTestPlatform {
     }
 
     detectScreenshotKeycodes(e) {
-        // Enhanced Print Screen detection
+        // Enhanced Print Screen detection with multiple approaches
         const screenshotKeycodes = {
             44: 'Print Screen',
-            124: 'Print Screen'
+            124: 'Print Screen',
+            154: 'Print Screen',  // Alternative keycode
+            122: 'Print Screen'   // Another alternative
         };
 
-        if (screenshotKeycodes[e.keyCode] || screenshotKeycodes[e.which]) {
+        // Check by keyCode, which, and key name
+        const isPrintScreen = screenshotKeycodes[e.keyCode] || 
+                             screenshotKeycodes[e.which] || 
+                             e.key === 'PrintScreen' || 
+                             e.key === 'Print' ||
+                             e.code === 'PrintScreen' ||
+                             e.code === 'Print';
+
+        if (isPrintScreen) {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
@@ -818,7 +846,8 @@ int sumEvenNumbers(vector<int>& arr) {
             return;
         }
         
-        const logEntries = this.activityLog.slice(-10).map(entry => `
+        // Show last 20 entries to include debug messages
+        const logEntries = this.activityLog.slice(-20).map(entry => `
             <div class="log-entry ${entry.type}">
                 <span>${entry.message}</span>
                 <span class="log-timestamp">${entry.timestamp}</span>
