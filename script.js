@@ -16,6 +16,41 @@ class MockTestPlatform {
         this.mediaRecorder = null;
         this.recordedChunks = [];
         
+        // Mouse tracking properties
+        this.mouseTracking = {
+            lastActivity: Date.now(),
+            idleTimeoutDuration: 30000, // 30 seconds
+            idleWarningDuration: 20000, // 20 seconds warning
+            idleInterval: null,
+            isIdle: false,
+            totalIdleTime: 0,
+            idleSessionStart: null,
+            
+            // Mouse position tracking
+            lastPosition: { x: 0, y: 0 },
+            currentPosition: { x: 0, y: 0 },
+            totalDistance: 0,
+            movementHistory: [],
+            maxHistoryLength: 100,
+            
+            // Mouse boundary tracking
+            leftBrowser: false,
+            browserExitCount: 0,
+            browserExitTime: 0,
+            
+            // Anomaly detection
+            jumpThreshold: 150, // pixels
+            jumpCount: 0,
+            accelerationThreshold: 50, // pixels per millisecond
+            highAccelerationCount: 0,
+            suspiciousMovementCount: 0,
+            
+            // Coverage area
+            visitedAreas: new Set(),
+            gridSize: 50, // 50x50 pixel grids
+            totalCoverage: 0
+        };
+        
         this.initializeEventListeners();
         this.setupMonitoring();
         this.updateDisplay();
@@ -305,6 +340,9 @@ class MockTestPlatform {
         
         // Monitor clipboard access attempts
         this.setupClipboardMonitoring();
+        
+        // Setup comprehensive mouse tracking
+        this.setupMouseTracking();
     }
 
     setupScreenshotDetection() {
@@ -663,6 +701,9 @@ class MockTestPlatform {
         // Start timer
         this.startTimer();
         
+        // Start display update timer for mouse tracking
+        this.startDisplayUpdateTimer();
+        
         // Start webcam monitoring if available
         if (this.webcamActive) {
             this.startWebcamMonitoring();
@@ -692,6 +733,9 @@ class MockTestPlatform {
         // Stop screen recording
         this.stopScreenRecording();
         
+        // Stop mouse tracking
+        this.stopMouseTracking();
+        
         // Exit fullscreen mode
         this.exitFullscreen();
         
@@ -711,6 +755,12 @@ class MockTestPlatform {
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
+        }
+        
+        // Stop display update timer
+        if (this.displayUpdateInterval) {
+            clearInterval(this.displayUpdateInterval);
+            this.displayUpdateInterval = null;
         }
         
         // Log end and show summary
@@ -733,18 +783,40 @@ class MockTestPlatform {
         }, 1000);
     }
 
+    startDisplayUpdateTimer() {
+        // Update display every 2 seconds to show real-time mouse status
+        this.displayUpdateInterval = setInterval(() => {
+            if (this.testActive) {
+                this.updateMouseStatus();
+            }
+        }, 2000);
+    }
+
     showTestSummary() {
         const elapsed = this.startTime ? Math.floor((new Date() - this.startTime) / 1000) : 0;
         const minutes = Math.floor(elapsed / 60);
         const seconds = elapsed % 60;
         
+        // Get mouse tracking summary
+        const mouseStats = this.getMouseTrackingSummary();
+        
         const summary = `Test Summary:
 Time taken: ${minutes}m ${seconds}s
 Tab switches: ${this.tabSwitchCount}
-Copy/Paste events: ${this.copyPasteCount}
+Copy/Paste & Screenshots: ${this.copyPasteCount}
 Webcam snapshots: ${this.snapshotCount}
 Screen recording: ${this.screenRecording ? 'Completed' : 'Not available'}
-Total violations: ${this.tabSwitchCount + this.copyPasteCount}`;
+
+Mouse Activity Analysis:
+Total mouse movement: ${mouseStats.totalDistance} pixels
+Screen coverage: ${mouseStats.coveragePercentage}%
+Mouse left browser: ${mouseStats.browserExitCount} times
+Time outside browser: ${(mouseStats.browserExitTime / 1000).toFixed(1)}s
+Large mouse jumps: ${mouseStats.jumpCount}
+Suspicious movements: ${mouseStats.suspiciousMovementCount}
+Total idle time: ${mouseStats.totalIdleTime}s
+
+Total violations: ${this.tabSwitchCount + this.copyPasteCount + mouseStats.jumpCount + mouseStats.suspiciousMovementCount}`;
         
         this.showWarning(summary);
     }
@@ -914,6 +986,7 @@ int sumEvenNumbers(vector<int>& arr) {
         this.updateFullscreenStatus();
         this.updateWebcamStatus();
         this.updateScreenStatus();
+        this.updateMouseStatus();
     }
 
     updateScreenStatus() {
@@ -958,6 +1031,44 @@ int sumEvenNumbers(vector<int>& arr) {
                     fullscreenBtn.style.display = 'flex';
                     fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i> Enter Fullscreen';
                 }
+            }
+        }
+    }
+
+    updateMouseStatus() {
+        const mouseStatusElement = document.getElementById('mouseStatus');
+        const idleTimeElement = document.getElementById('idleTime');
+        
+        if (mouseStatusElement) {
+            if (this.testActive) {
+                if (this.mouseTracking.isIdle) {
+                    mouseStatusElement.textContent = 'Idle';
+                    mouseStatusElement.style.color = '#e53e3e';
+                } else if (this.mouseTracking.leftBrowser) {
+                    mouseStatusElement.textContent = 'Outside';
+                    mouseStatusElement.style.color = '#ed8936';
+                } else {
+                    mouseStatusElement.textContent = 'Active';
+                    mouseStatusElement.style.color = '#38a169';
+                }
+            } else {
+                mouseStatusElement.textContent = 'Inactive';
+                mouseStatusElement.style.color = '#4a5568';
+            }
+        }
+        
+        if (idleTimeElement) {
+            const currentIdleTime = this.mouseTracking.isIdle ? 
+                (Date.now() - this.mouseTracking.idleSessionStart) / 1000 : 0;
+            const totalDisplayTime = (this.mouseTracking.totalIdleTime / 1000) + currentIdleTime;
+            idleTimeElement.textContent = `${totalDisplayTime.toFixed(0)}s`;
+            
+            if (totalDisplayTime > 60) {
+                idleTimeElement.style.color = '#e53e3e';
+            } else if (totalDisplayTime > 30) {
+                idleTimeElement.style.color = '#ed8936';
+            } else {
+                idleTimeElement.style.color = '#4a5568';
             }
         }
     }
@@ -1210,6 +1321,217 @@ int sumEvenNumbers(vector<int>& arr) {
         };
         
         return summaryData;
+    }
+
+    setupMouseTracking() {
+        // Mouse movement tracking
+        document.addEventListener('mousemove', (e) => {
+            if (this.testActive) {
+                this.handleMouseMove(e);
+            }
+        });
+
+        // Mouse enter/leave tracking
+        document.addEventListener('mouseenter', () => {
+            if (this.testActive && this.mouseTracking.leftBrowser) {
+                this.mouseTracking.leftBrowser = false;
+                this.mouseTracking.browserExitTime += Date.now() - this.mouseTracking.browserExitStart;
+                this.logActivity('Mouse returned to browser window', 'info');
+            }
+        });
+
+        document.addEventListener('mouseleave', () => {
+            if (this.testActive) {
+                this.mouseTracking.leftBrowser = true;
+                this.mouseTracking.browserExitCount++;
+                this.mouseTracking.browserExitStart = Date.now();
+                this.logActivity('Mouse left browser window - Potential external activity', 'warning');
+                
+                if (this.mouseTracking.browserExitCount > 5) {
+                    this.showWarning('Multiple mouse exits detected! Frequent movement outside the browser may indicate unauthorized assistance.');
+                }
+            }
+        });
+
+        // Start idle monitoring
+        this.startIdleMonitoring();
+
+        // Keyboard activity also resets idle timer
+        document.addEventListener('keydown', () => {
+            if (this.testActive) {
+                this.resetIdleTimer();
+            }
+        });
+
+        // Click activity resets idle timer
+        document.addEventListener('click', () => {
+            if (this.testActive) {
+                this.resetIdleTimer();
+            }
+        });
+    }
+
+    handleMouseMove(e) {
+        const currentTime = Date.now();
+        this.mouseTracking.currentPosition = { x: e.clientX, y: e.clientY };
+        
+        // Calculate distance moved
+        const distance = this.calculateDistance(
+            this.mouseTracking.lastPosition,
+            this.mouseTracking.currentPosition
+        );
+        
+        this.mouseTracking.totalDistance += distance;
+        
+        // Check for movement anomalies
+        this.detectMovementAnomalies(distance, currentTime);
+        
+        // Update coverage area
+        this.updateCoverageArea(e.clientX, e.clientY);
+        
+        // Store movement history
+        this.storeMovementHistory(e.clientX, e.clientY, currentTime);
+        
+        // Reset idle timer
+        this.resetIdleTimer();
+        
+        // Update last position
+        this.mouseTracking.lastPosition = { x: e.clientX, y: e.clientY };
+    }
+
+    calculateDistance(pos1, pos2) {
+        return Math.sqrt(Math.pow(pos2.x - pos1.x, 2) + Math.pow(pos2.y - pos1.y, 2));
+    }
+
+    detectMovementAnomalies(distance, currentTime) {
+        // Detect large jumps (possible automation/assistance)
+        if (distance > this.mouseTracking.jumpThreshold) {
+            this.mouseTracking.jumpCount++;
+            this.logActivity(`Large mouse jump detected: ${distance.toFixed(2)} pixels`, 'warning');
+            
+            if (this.mouseTracking.jumpCount > 3) {
+                this.showWarning('Unusual mouse movement patterns detected! Large jumps may indicate automated assistance.');
+            }
+        }
+
+        // Detect high acceleration (unnatural movement)
+        if (this.mouseTracking.movementHistory.length > 1) {
+            const lastMovement = this.mouseTracking.movementHistory[this.mouseTracking.movementHistory.length - 1];
+            const timeDiff = currentTime - lastMovement.time;
+            
+            if (timeDiff > 0) {
+                const acceleration = distance / timeDiff;
+                if (acceleration > this.mouseTracking.accelerationThreshold) {
+                    this.mouseTracking.highAccelerationCount++;
+                    this.logActivity(`High mouse acceleration detected: ${acceleration.toFixed(2)} px/ms`, 'warning');
+                    
+                    if (this.mouseTracking.highAccelerationCount > 5) {
+                        this.mouseTracking.suspiciousMovementCount++;
+                        this.showWarning('Suspicious mouse acceleration patterns detected! This may indicate automated tools.');
+                    }
+                }
+            }
+        }
+    }
+
+    updateCoverageArea(x, y) {
+        const gridX = Math.floor(x / this.mouseTracking.gridSize);
+        const gridY = Math.floor(y / this.mouseTracking.gridSize);
+        const gridKey = `${gridX},${gridY}`;
+        
+        if (!this.mouseTracking.visitedAreas.has(gridKey)) {
+            this.mouseTracking.visitedAreas.add(gridKey);
+            
+            // Calculate total possible grid areas
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            const totalGridsX = Math.ceil(windowWidth / this.mouseTracking.gridSize);
+            const totalGridsY = Math.ceil(windowHeight / this.mouseTracking.gridSize);
+            const totalPossibleGrids = totalGridsX * totalGridsY;
+            
+            this.mouseTracking.totalCoverage = (this.mouseTracking.visitedAreas.size / totalPossibleGrids) * 100;
+        }
+    }
+
+    storeMovementHistory(x, y, time) {
+        this.mouseTracking.movementHistory.push({ x, y, time });
+        
+        // Keep only recent history
+        if (this.mouseTracking.movementHistory.length > this.mouseTracking.maxHistoryLength) {
+            this.mouseTracking.movementHistory.shift();
+        }
+    }
+
+    startIdleMonitoring() {
+        this.mouseTracking.idleInterval = setInterval(() => {
+            if (this.testActive) {
+                const currentTime = Date.now();
+                const idleTime = currentTime - this.mouseTracking.lastActivity;
+                
+                // Warning phase
+                if (idleTime > this.mouseTracking.idleWarningDuration && !this.mouseTracking.isIdle) {
+                    this.showWarning('Inactivity detected! Please interact with the test to continue. Prolonged inactivity will be logged as suspicious behavior.');
+                    this.logActivity('Mouse inactivity warning - 20 seconds idle', 'warning');
+                }
+                
+                // Idle timeout
+                if (idleTime > this.mouseTracking.idleTimeoutDuration) {
+                    if (!this.mouseTracking.isIdle) {
+                        this.mouseTracking.isIdle = true;
+                        this.mouseTracking.idleSessionStart = currentTime;
+                        this.logActivity('Mouse idle timeout reached - User appears inactive', 'warning');
+                        this.showWarning('Extended inactivity detected! This may indicate the user has left the test area or is receiving unauthorized assistance.');
+                    }
+                } else if (this.mouseTracking.isIdle) {
+                    // User became active again
+                    const idleSessionDuration = currentTime - this.mouseTracking.idleSessionStart;
+                    this.mouseTracking.totalIdleTime += idleSessionDuration;
+                    this.mouseTracking.isIdle = false;
+                    this.logActivity(`User returned from idle state after ${(idleSessionDuration / 1000).toFixed(1)} seconds`, 'info');
+                }
+            }
+        }, 1000);
+    }
+
+    resetIdleTimer() {
+        this.mouseTracking.lastActivity = Date.now();
+        
+        if (this.mouseTracking.isIdle) {
+            const idleSessionDuration = Date.now() - this.mouseTracking.idleSessionStart;
+            this.mouseTracking.totalIdleTime += idleSessionDuration;
+            this.mouseTracking.isIdle = false;
+            this.logActivity('User activity resumed', 'info');
+        }
+    }
+
+    stopMouseTracking() {
+        // Clear idle monitoring interval
+        if (this.mouseTracking.idleInterval) {
+            clearInterval(this.mouseTracking.idleInterval);
+            this.mouseTracking.idleInterval = null;
+        }
+        
+        // Final idle time calculation if user was idle
+        if (this.mouseTracking.isIdle && this.mouseTracking.idleSessionStart) {
+            const finalIdleTime = Date.now() - this.mouseTracking.idleSessionStart;
+            this.mouseTracking.totalIdleTime += finalIdleTime;
+        }
+        
+        this.logActivity('Mouse tracking stopped', 'info');
+    }
+
+    getMouseTrackingSummary() {
+        return {
+            totalDistance: this.mouseTracking.totalDistance.toFixed(2),
+            coveragePercentage: this.mouseTracking.totalCoverage.toFixed(2),
+            browserExitCount: this.mouseTracking.browserExitCount,
+            browserExitTime: this.mouseTracking.browserExitTime,
+            jumpCount: this.mouseTracking.jumpCount,
+            highAccelerationCount: this.mouseTracking.highAccelerationCount,
+            suspiciousMovementCount: this.mouseTracking.suspiciousMovementCount,
+            totalIdleTime: (this.mouseTracking.totalIdleTime / 1000).toFixed(1),
+            currentlyIdle: this.mouseTracking.isIdle
+        };
     }
 }
 

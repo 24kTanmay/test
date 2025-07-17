@@ -399,6 +399,14 @@ body {
     background: linear-gradient(135deg, #38b2ac, #319795);
 }
 
+.monitoring-icon.mouse-activity {
+    background: linear-gradient(135deg, #d53f8c, #b83280);
+}
+
+.monitoring-icon.idle-time {
+    background: linear-gradient(135deg, #ed8936, #dd6b20);
+}
+
 .monitoring-info h4 {
     color: #2d3748;
     font-size: 1rem;
