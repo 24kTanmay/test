@@ -168,9 +168,69 @@ class MockTestPlatform {
                     return false;
                 }
                 
+                // Print Screen detection and prevention
+                if (e.key === 'PrintScreen' || e.keyCode === 44 || e.which === 44) {
+                    e.preventDefault();
+                    this.copyPasteCount++; // Count as violation
+                    this.showWarning('Screenshots are not allowed during the test! This violation has been recorded.');
+                    this.logActivity('Print Screen key pressed - Screenshot attempt blocked', 'warning');
+                    this.updateDisplay();
+                    return false;
+                }
+                
+                // Alt+Print Screen (Alt+PrtScn)
+                if (e.altKey && (e.key === 'PrintScreen' || e.keyCode === 44 || e.which === 44)) {
+                    e.preventDefault();
+                    this.copyPasteCount++;
+                    this.showWarning('Alt+Print Screen is not allowed during the test! Active window screenshots are blocked.');
+                    this.logActivity('Alt+Print Screen pressed - Window screenshot attempt blocked', 'warning');
+                    this.updateDisplay();
+                    return false;
+                }
+                
+                // Windows+Print Screen (Win+PrtScn)
+                if ((e.metaKey || e.key === 'Meta') && (e.key === 'PrintScreen' || e.keyCode === 44 || e.which === 44)) {
+                    e.preventDefault();
+                    this.copyPasteCount++;
+                    this.showWarning('Windows+Print Screen is not allowed during the test! Screenshot to clipboard blocked.');
+                    this.logActivity('Windows+Print Screen pressed - System screenshot attempt blocked', 'warning');
+                    this.updateDisplay();
+                    return false;
+                }
+                
+                // Ctrl+Print Screen
+                if (e.ctrlKey && (e.key === 'PrintScreen' || e.keyCode === 44 || e.which === 44)) {
+                    e.preventDefault();
+                    this.copyPasteCount++;
+                    this.showWarning('Ctrl+Print Screen is not allowed during the test!');
+                    this.logActivity('Ctrl+Print Screen pressed - Screenshot attempt blocked', 'warning');
+                    this.updateDisplay();
+                    return false;
+                }
+                
+                // Windows Key (Super/Meta key) detection
+                if (e.key === 'Meta' || e.keyCode === 91 || e.keyCode === 92) {
+                    this.logActivity('Windows key pressed - Possible system access attempt', 'warning');
+                    this.showWarning('System shortcuts may interfere with the test. Please avoid using Windows key during the test.');
+                }
+                
                 // Alt+Tab
                 if (e.altKey && e.key === 'Tab') {
                     this.logActivity('Alt+Tab detected - Possible application switching', 'warning');
+                    this.showWarning('Alt+Tab detected! Application switching may be considered a violation.');
+                }
+                
+                // Ctrl+Shift combinations (screenshot tools)
+                if (e.ctrlKey && e.shiftKey) {
+                    const key = e.key.toLowerCase();
+                    if (['s', 'x'].includes(key)) {
+                        e.preventDefault();
+                        this.copyPasteCount++;
+                        this.showWarning(`Ctrl+Shift+${key.toUpperCase()} is blocked - Potential screenshot tool shortcut!`);
+                        this.logActivity(`Ctrl+Shift+${key.toUpperCase()} blocked - Screenshot tool attempt`, 'warning');
+                        this.updateDisplay();
+                        return false;
+                    }
                 }
             }
         });
@@ -239,6 +299,166 @@ class MockTestPlatform {
                 return false;
             }
         });
+
+        // Additional screenshot detection methods
+        this.setupScreenshotDetection();
+        
+        // Monitor clipboard access attempts
+        this.setupClipboardMonitoring();
+    }
+
+    setupScreenshotDetection() {
+        // Monitor for common screenshot applications
+        document.addEventListener('keyup', (e) => {
+            if (this.testActive) {
+                // Snipping Tool shortcuts
+                if ((e.key === 'Meta' || e.metaKey) && e.shiftKey && e.key === 'S') {
+                    this.copyPasteCount++;
+                    this.showWarning('Windows+Shift+S (Snipping Tool) is not allowed during the test!');
+                    this.logActivity('Snipping Tool shortcut detected - Screenshot attempt blocked', 'warning');
+                    this.updateDisplay();
+                }
+                
+                // Function keys that might trigger screenshot tools
+                if (['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11'].includes(e.key)) {
+                    if (e.key === 'F11') {
+                        e.preventDefault();
+                        this.logActivity('F11 key blocked during test', 'warning');
+                        this.showWarning('Manual fullscreen toggle (F11) is disabled during the test!');
+                        return false;
+                    }
+                    this.logActivity(`Function key ${e.key} pressed - Monitoring for screenshot tools`, 'info');
+                }
+            }
+        });
+
+        // Monitor for screen capture API access
+        if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+            const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
+            navigator.mediaDevices.getDisplayMedia = (...args) => {
+                if (this.testActive && !this.screenRecording) {
+                    this.logActivity('Unauthorized screen capture attempt detected', 'warning');
+                    this.showWarning('Unauthorized screen recording attempt detected! Only test-approved recording is allowed.');
+                    throw new Error('Screen capture not allowed during test');
+                }
+                return originalGetDisplayMedia.apply(navigator.mediaDevices, args);
+            };
+        }
+
+        // Monitor window visibility changes (potential screenshot tools)
+        let visibilityChangeCount = 0;
+        document.addEventListener('visibilitychange', () => {
+            if (this.testActive && document.hidden) {
+                visibilityChangeCount++;
+                if (visibilityChangeCount > 3) {
+                    this.logActivity('Multiple tab switches detected - Possible screenshot tool usage', 'warning');
+                    this.showWarning('Multiple tab switches detected. Excessive switching may indicate screenshot tool usage.');
+                }
+            }
+        });
+
+        // Additional screenshot detection methods
+        setInterval(() => {
+            if (window.mockTestPlatform && window.mockTestPlatform.testActive) {
+                // Monitor for rapid window size changes (screenshot tool behavior)
+                const currentSize = `${window.innerWidth}x${window.innerHeight}`;
+                if (window.lastWindowSize && window.lastWindowSize !== currentSize) {
+                    const sizeChangeCount = (window.sizeChangeCount || 0) + 1;
+                    window.sizeChangeCount = sizeChangeCount;
+                    
+                    if (sizeChangeCount > 5) {
+                        window.mockTestPlatform.logActivity('Rapid window size changes detected - Possible screenshot tool', 'warning');
+                        window.mockTestPlatform.showWarning('Unusual window behavior detected. Please avoid resizing the window during the test.');
+                        window.sizeChangeCount = 0; // Reset counter
+                    }
+                }
+                window.lastWindowSize = currentSize;
+
+                // Monitor for external applications accessing the screen
+                if (document.hasFocus && !document.hasFocus()) {
+                    const focusLossCount = (window.focusLossCount || 0) + 1;
+                    window.focusLossCount = focusLossCount;
+                    
+                    if (focusLossCount > 10) {
+                        window.mockTestPlatform.logActivity('Excessive focus loss detected - Possible external tool usage', 'warning');
+                        window.mockTestPlatform.showWarning('Multiple window focus changes detected. External applications may interfere with test integrity.');
+                        window.focusLossCount = 0; // Reset counter
+                    }
+                }
+            }
+        }, 1000);
+
+        // Monitor for screenshot-related browser events
+        document.addEventListener('DOMContentLoaded', () => {
+            // Detect if user tries to save page content
+            document.addEventListener('keydown', (e) => {
+                if (window.mockTestPlatform && window.mockTestPlatform.testActive) {
+                    // Ctrl+S (Save page)
+                    if (e.ctrlKey && e.key === 's') {
+                        e.preventDefault();
+                        window.mockTestPlatform.copyPasteCount++;
+                        window.mockTestPlatform.showWarning('Saving page content is not allowed during the test!');
+                        window.mockTestPlatform.logActivity('Attempted to save page (Ctrl+S)', 'warning');
+                        window.mockTestPlatform.updateDisplay();
+                        return false;
+                    }
+                    
+                    // Ctrl+P (Print page)
+                    if (e.ctrlKey && e.key === 'p') {
+                        e.preventDefault();
+                        window.mockTestPlatform.copyPasteCount++;
+                        window.mockTestPlatform.showWarning('Printing is not allowed during the test!');
+                        window.mockTestPlatform.logActivity('Attempted to print page (Ctrl+P)', 'warning');
+                        window.mockTestPlatform.updateDisplay();
+                        return false;
+                    }
+                }
+            });
+
+            // Monitor for browser's built-in screenshot functionality
+            if ('getDisplayMedia' in navigator.mediaDevices) {
+                const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
+                navigator.mediaDevices.getDisplayMedia = function(...args) {
+                    if (window.mockTestPlatform && window.mockTestPlatform.testActive && !window.mockTestPlatform.screenRecording) {
+                        window.mockTestPlatform.logActivity('Unauthorized screen capture API call detected', 'warning');
+                        window.mockTestPlatform.showWarning('Unauthorized screen recording detected! This is a serious violation.');
+                        throw new Error('Screen capture blocked during test');
+                    }
+                    return originalGetDisplayMedia.apply(this, args);
+                };
+            }
+        });
+
+        // Prevent common screenshot shortcuts with additional methods
+        window.addEventListener('keydown', (e) => {
+            if (window.mockTestPlatform && window.mockTestPlatform.testActive) {
+                // Lightshot and other screenshot tool shortcuts
+                const screenshotShortcuts = [
+                    { ctrl: true, shift: false, alt: false, key: 'PrintScreen' },
+                    { ctrl: false, shift: true, alt: false, key: 'PrintScreen' },
+                    { ctrl: true, shift: true, alt: false, key: 'PrintScreen' },
+                    { ctrl: false, shift: false, alt: true, key: 'PrintScreen' },
+                    // Common third-party screenshot tools
+                    { ctrl: true, shift: true, alt: false, key: 'x' }, // Some screenshot tools
+                    { ctrl: true, shift: true, alt: false, key: 'z' }, // Some screenshot tools
+                ];
+
+                for (const shortcut of screenshotShortcuts) {
+                    if (e.ctrlKey === shortcut.ctrl && 
+                        e.shiftKey === shortcut.shift && 
+                        e.altKey === shortcut.alt && 
+                        e.key === shortcut.key) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.mockTestPlatform.copyPasteCount++;
+                        window.mockTestPlatform.showWarning(`Screenshot shortcut ${shortcut.ctrl ? 'Ctrl+' : ''}${shortcut.shift ? 'Shift+' : ''}${shortcut.alt ? 'Alt+' : ''}${shortcut.key} is blocked!`);
+                        window.mockTestPlatform.logActivity(`Screenshot shortcut attempt: ${shortcut.ctrl ? 'Ctrl+' : ''}${shortcut.shift ? 'Shift+' : ''}${shortcut.alt ? 'Alt+' : ''}${shortcut.key}`, 'warning');
+                        window.mockTestPlatform.updateDisplay();
+                        return false;
+                    }
+                }
+            }
+        }, true); // Use capture phase to catch events early
     }
 
     startTest() {
