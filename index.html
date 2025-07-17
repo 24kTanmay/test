@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <title>Mock Test Platform</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
@@ -222,27 +223,6 @@ Output: 12 (2 + 4 + 6)</code></pre>
         <div id="webcamContainer" style="display: none;">
             <video id="webcamVideo" autoplay muted style="width: 200px; height: 150px; border-radius: 10px; position: fixed; top: 20px; right: 20px; z-index: 999; border: 3px solid #667eea;"></video>
             <canvas id="snapshotCanvas" style="display: none;"></canvas>
-        </div>
-
-        <!-- Permission Request Modal -->
-        <div class="permission-overlay" id="permissionOverlay" style="display: none;">
-            <div class="permission-content">
-                <i class="fas fa-camera"></i>
-                <h2>Webcam Access Required</h2>
-                <p>This test requires webcam monitoring for proctoring purposes. Snapshots will be taken every 10 seconds during the test.</p>
-                <div class="permission-buttons">
-                    <button id="allowWebcam" class="btn btn-success">
-                        <i class="fas fa-check"></i> Allow Camera Access
-                    </button>
-                    <button id="denyWebcam" class="btn btn-danger">
-                        <i class="fas fa-times"></i> Deny Access
-                    </button>
-                </div>
-                <p class="privacy-note">
-                    <i class="fas fa-shield-alt"></i>
-                    Your privacy is important. Images are used only for test monitoring and are not stored permanently.
-                </p>
-            </div>
         </div>
     </div>
 

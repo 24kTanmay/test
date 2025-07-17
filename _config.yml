@@ -1,0 +1,40 @@
+# GitHub Pages Configuration
+title: "Mock Test Platform"
+description: "A comprehensive web-based mock test platform with advanced proctoring features"
+baseurl: ""
+url: "https://24kTanmay.github.io/test"
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+theme: minima
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# Exclude files
+exclude:
+  - README.md
+  - .gitignore
+  - node_modules/
+  - vendor/
+
+# Include files
+include:
+  - _pages
+
+# Collections
+collections:
+  pages:
+    output: true
+    permalink: /:name/
+
+# Default settings
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
